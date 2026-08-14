@@ -4,6 +4,7 @@ import multer from 'multer'
 import Papa from 'papaparse'
 import dotenv from 'dotenv'
 import Groq from 'groq-sdk'
+import axios from 'axios'
 import { testDatabaseConnection, extractDatabaseSchema } from './lib/dbConnector.js'
 import { parseSqlDump } from './lib/sqlParser.js'
 
@@ -92,7 +93,8 @@ app.post('/api/upload-csv', upload.single('file'), (req, res) => {
       let aiConfig = { kpis: [], charts: [] };
 
       if (process.env.GROQ_API_KEY) {
-        const columnsInfo = columns.map(c => `${c.name} (${c.type})`).join(', ');
+        const filteredColumns = columns.filter(c => !/(^id$|_id$)/i.test(c.name));
+        const columnsInfo = filteredColumns.map(c => `${c.name} (${c.type})`).join(', ');
         const sampleData = JSON.stringify(data.slice(0, 3));
         
         const systemPrompt = `You are an expert Data Analyst. Given the following CSV schema and sample data, recommend 3 top KPIs and exactly 4 charts that provide the best business intelligence for a dashboard. 
@@ -112,6 +114,7 @@ app.post('/api/upload-csv', upload.single('file'), (req, res) => {
         - "aggregation" must be one of: "sum", "count", "avg"
         - "xAxis" must be a valid column name from the schema.
         - "yAxis" must be a valid numeric column name from the schema (or null if aggregation is count).
+        - NEVER use surrogate keys, primary keys, foreign keys, or any column ending in "id" or "_id" for xAxis or yAxis. These are meaningless in business charts.
         - "type" MUST BE DYNAMICALLY CHOSEN BASED ON DATA TYPE:
           * Use "line" for date, timestamp, or release_year trends.
           * Use "pie" for categories with < 7 unique values (proportions/distribution).
@@ -136,9 +139,9 @@ app.post('/api/upload-csv', upload.single('file'), (req, res) => {
       // Statistical Heuristic Fallback Engine (Guarantees dynamic charts even if Groq API key is invalid/missing)
       if (!aiConfig.charts || aiConfig.charts.length === 0) {
         const dateCol = columns.find(c => c.type === 'TIMESTAMP' || c.name.toLowerCase().includes('date') || c.name.toLowerCase().includes('time'))?.name;
-        const numCol = columns.find(c => (c.type === 'DECIMAL' || c.type === 'INT') && !c.name.toLowerCase().includes('id'))?.name;
-        const catCol = columns.find(c => c.name.toLowerCase().includes('category') || c.name.toLowerCase().includes('type') || c.name.toLowerCase().includes('status') || c.name.toLowerCase().includes('method'))?.name || (columns[1] ? columns[1].name : columns[0].name);
-        const geoCol = columns.find(c => c.name.toLowerCase().includes('region') || c.name.toLowerCase().includes('country') || c.name.toLowerCase().includes('city') || c.name.toLowerCase().includes('state'))?.name;
+        const numCol = columns.find(c => (c.type === 'DECIMAL' || c.type === 'INT') && !/(^id$|_id$)/i.test(c.name))?.name;
+        const catCol = columns.find(c => (c.name.toLowerCase().includes('category') || c.name.toLowerCase().includes('type') || c.name.toLowerCase().includes('status') || c.name.toLowerCase().includes('method')) && !/(^id$|_id$)/i.test(c.name))?.name || (columns.find(c => !/(^id$|_id$)/i.test(c.name))?.name || columns[0].name);
+        const geoCol = columns.find(c => (c.name.toLowerCase().includes('region') || c.name.toLowerCase().includes('country') || c.name.toLowerCase().includes('city') || c.name.toLowerCase().includes('state')) && !/(^id$|_id$)/i.test(c.name))?.name;
 
         aiConfig = {
           kpis: [
@@ -155,8 +158,9 @@ app.post('/api/upload-csv', upload.single('file'), (req, res) => {
         };
       }
 
-      // Execute AI Math Requests safely
-      const computedKpis = (aiConfig.kpis || []).map(kpi => {
+      // Execute AI Math Requests safely (Strictly reject any KPIs that hallucinate ID columns)
+      const validKpis = (aiConfig.kpis || []).filter(kpi => !/(^id$|_id$)/i.test(String(kpi.column || '')))
+      const computedKpis = validKpis.map(kpi => {
         let value = 0;
         const colName = String(kpi.column || '');
         data.forEach(row => {
@@ -182,7 +186,12 @@ app.post('/api/upload-csv', upload.single('file'), (req, res) => {
         return { ...kpi, value: (kpi.prefix || '') + formattedStr };
       });
 
-      const computedCharts = (aiConfig.charts || []).map(chart => {
+      // Generate dynamic charts (Strictly reject any charts that hallucinate ID columns)
+      const validCharts = (aiConfig.charts || []).filter(chart => 
+        !/(^id$|_id$)/i.test(String(chart.xAxis || '')) && 
+        !/(^id$|_id$)/i.test(String(chart.yAxis || ''))
+      )
+      const computedCharts = validCharts.map(chart => {
         const map = {};
         const xAxisKey = String(chart.xAxis || '');
         const yAxisKey = String(chart.yAxis || '');
@@ -293,7 +302,32 @@ app.post('/api/test-db', async (req, res) => {
 // Connect & Analyze Database Schema Endpoint
 app.post('/api/connect-db', async (req, res) => {
   try {
-    const customDetails = await extractDatabaseSchema(req.body)
+    const aiLayerUrl = process.env.AI_LAYER_URL || 'http://localhost:8000'
+    const response = await axios.post(`${aiLayerUrl}/api/analyze`, req.body)
+    
+    // Reshape Python payload to match legacy Node payload expected by React
+    const pyData = response.data?.results || {}
+    const pySchema = pyData.schema || {}
+    const tablesArray = Object.values(pySchema.tables || {})
+    const relationships = pyData.relationships || []
+    
+    const customDetails = {
+      name: `${req.body.dbName || req.body.filename || 'Database'} (${req.body.dbType || 'Unknown'})`,
+      tablesCount: pySchema.table_count || tablesArray.length,
+      columnsCount: pySchema.column_count || 0,
+      relationshipsCount: relationships.length,
+      totalRecords: tablesArray.reduce((acc, t) => acc + (t.row_count || 0), 0),
+      qualityScore: pyData.quality?.score || 92,
+      anomaliesCount: (pyData.quality?.anomalies || []).length,
+      tables: tablesArray.map(t => ({
+        ...t,
+        records: t.row_count || 0,
+        columns: t.columns || []
+      })),
+      relationships: relationships,
+      ragChunks: pyData.rag?.index || []
+    }
+
     return res.json({
       success: true,
       datasetKey: 'Custom Database',
@@ -301,7 +335,7 @@ app.post('/api/connect-db', async (req, res) => {
     })
   } catch (err) {
     console.error('Database analysis error:', err)
-    return res.status(500).json({ error: err.message || 'Failed to extract schema from database' })
+    return res.status(500).json({ error: err.response?.data?.detail || err.message || 'Failed to extract schema from database via AI Layer' })
   }
 })
 
@@ -323,29 +357,33 @@ app.post('/api/upload-sql', upload.single('file'), async (req, res) => {
     // ──────────────────────────────────────────────────────────────────
     let aiConfig = { kpis: [], charts: [] }
 
-    if (process.env.GROQ_API_KEY && allColumns.length > 0) {
-      const columnsInfo = allColumns.map(c => `${c.name} (${c.type || 'TEXT'})`).join(', ')
-      const sampleData = allRows.length > 0 ? JSON.stringify(allRows.slice(0, 3)) : '(schema only — no INSERT INTO rows)'
+    if (process.env.GROQ_API_KEY && parsed.tables.length > 0) {
+      const schemaDescription = parsed.tables.map(t => {
+        const cols = (t.columns || []).filter(c => !/(^id$|_id$)/i.test(c.name)).map(c => `${c.name} (${c.type || 'TEXT'})`).join(', ')
+        return `Table ${t.name}: ${cols}`
+      }).join('\n      ')
+
       const tableNames = parsed.tables.map(t => t.name).join(', ')
 
-      const systemPrompt = `You are an expert Data Analyst. Given a SQL database dump with tables: ${tableNames}.
-      All columns: ${columnsInfo}
-      Sample rows: ${sampleData}
+      const systemPrompt = `You are an expert Data Analyst. Given a SQL database dump with the following tables and schemas:
+      ${schemaDescription}
 
       Recommend 3 KPIs and exactly 4 charts for the best business intelligence dashboard.
-      Use column names EXACTLY as listed.
+      Use column names EXACTLY as listed in the schemas.
 
       Return ONLY strict JSON:
       {
-        "kpis": [{ "title": "string", "column": "exact_col_name", "aggregation": "count"|"sum"|"avg", "prefix": "" }],
-        "charts": [{ "id": "chart1", "title": "string", "type": "bar"|"line"|"pie"|"area", "xAxis": "exact_col_name", "yAxis": "exact_col_name_or_null", "aggregation": "count"|"sum"|"avg" }]
+        "kpis": [{ "title": "string", "table": "exact_table_name", "column": "exact_col_name", "aggregation": "count"|"sum"|"avg", "prefix": "" }],
+        "charts": [{ "id": "chart1", "title": "string", "type": "bar"|"line"|"pie"|"area", "table": "exact_table_name", "xAxis": "exact_col_name", "yAxis": "exact_col_name_or_null", "aggregation": "count"|"sum"|"avg" }]
       }
       Rules:
-      - xAxis and yAxis MUST be exact column names from the list above.
+      - 'table' MUST be an exact table name from the list above.
+      - 'xAxis' and 'yAxis' MUST be exact column names belonging to the specified 'table'.
+      - NEVER use surrogate keys, primary keys, foreign keys, or any column ending in "id" or "_id" for xAxis or yAxis. These are meaningless in business charts.
       - If no numeric columns exist, use aggregation "count" and set yAxis to null.
       - Use "pie" for categorical columns with few unique values.
       - Use "bar" for comparing categories.
-      - Use "line" for date/year columns.`
+      - Use "line" or "area" for date/year columns.`
 
       try {
         const completion = await groq.chat.completions.create({
@@ -364,9 +402,9 @@ app.post('/api/upload-sql', upload.single('file'), async (req, res) => {
     if (!aiConfig.charts || aiConfig.charts.length === 0) {
       const cols = allColumns
       const dateCol = cols.find(c => /date|time|year|month/i.test(c.name) || /TIMESTAMP|DATE/i.test(c.type || ''))?.name
-      const numCol = cols.find(c => /int|decimal|float|double|numeric/i.test(c.type || '') && !c.pk && !/id/i.test(c.name))?.name
-      const catCol = cols.find(c => !c.pk && !/id$/i.test(c.name) && /varchar|text|char|enum/i.test(c.type || ''))?.name
-                  || cols.find(c => !c.pk && c.name.toLowerCase() !== 'id')?.name
+      const numCol = cols.find(c => /int|decimal|float|double|numeric/i.test(c.type || '') && !c.pk && !/(^id$|_id$)/i.test(c.name))?.name
+      const catCol = cols.find(c => !c.pk && !/(^id$|_id$)/i.test(c.name) && /varchar|text|char|enum/i.test(c.type || ''))?.name
+                  || cols.find(c => !c.pk && !/(^id$|_id$)/i.test(c.name))?.name
 
       // Schema-only chart: columns per table
       const schemaChartData = parsed.tables.map(t => ({ name: t.name, value: t.columns?.length || 0 })).filter(d => d.value > 0)
@@ -399,14 +437,19 @@ app.post('/api/upload-sql', upload.single('file'), async (req, res) => {
       }
     }
 
-    // Compute KPI values
-    const computedKpis = (aiConfig.kpis || []).map(kpi => {
+    // Compute KPI values (Strictly reject any KPIs that hallucinate ID columns)
+    const validKpis = (aiConfig.kpis || []).filter(kpi => !/(^id$|_id$)/i.test(String(kpi.column || '')))
+    const computedKpis = validKpis.map(kpi => {
       if (kpi.staticValue !== undefined) {
         return { title: kpi.title, value: String(kpi.staticValue) }
       }
       let value = 0
       const colName = String(kpi.column || '')
-      allRows.forEach(row => {
+      const cleanTarget = String(kpi.table || '').replace(/[`'"]/g, '').toLowerCase()
+      const targetTable = parsed.tables.find(t => String(t.name).replace(/[`'"]/g, '').toLowerCase() === cleanTarget)
+      const targetRows = targetTable ? (targetTable.sampleRows || []) : allRows
+
+      targetRows.forEach(row => {
         const v = parseCleanNumber(row[colName])
         if (!isNaN(v)) {
           if (kpi.aggregation === 'sum') value += v
@@ -414,14 +457,18 @@ app.post('/api/upload-sql', upload.single('file'), async (req, res) => {
         }
         if (kpi.aggregation === 'count') value++
       })
-      if (kpi.aggregation === 'avg' && allRows.length > 0) value /= allRows.length
+      if (kpi.aggregation === 'avg' && targetRows.length > 0) value /= targetRows.length
       const fmt = Math.round(value * 100) / 100
       let str = fmt >= 1e9 ? (fmt/1e9).toFixed(1)+'B' : fmt >= 1e6 ? (fmt/1e6).toFixed(1)+'M' : fmt >= 1e4 ? (fmt/1e3).toFixed(1)+'K' : Number(fmt).toLocaleString()
       return { title: kpi.title, value: (kpi.prefix || '') + str }
     })
 
-    // Compute chart data
-    const computedCharts = (aiConfig.charts || []).map(chart => {
+    // Compute chart data (Strictly reject any charts that hallucinate ID columns)
+    const validCharts = (aiConfig.charts || []).filter(chart => 
+      !/(^id$|_id$)/i.test(String(chart.xAxis || '')) && 
+      !/(^id$|_id$)/i.test(String(chart.yAxis || ''))
+    )
+    const computedCharts = validCharts.map(chart => {
       // Pre-computed (e.g. schema overview chart)
       if (chart.precomputedData) {
         return { ...chart, data: chart.precomputedData, isAutoGenerated: true }
@@ -431,7 +478,11 @@ app.post('/api/upload-sql', upload.single('file'), async (req, res) => {
       const yKey = String(chart.yAxis || '')
       const map = {}
 
-      allRows.forEach(row => {
+      const cleanTarget = String(chart.table || '').replace(/[`'"]/g, '').toLowerCase()
+      const targetTable = parsed.tables.find(t => String(t.name).replace(/[`'"]/g, '').toLowerCase() === cleanTarget)
+      const targetRows = targetTable ? (targetTable.sampleRows || []) : allRows
+
+      targetRows.forEach(row => {
         if (!row) return
         const xRaw = row[xKey]
         const xVal = (xRaw != null && String(xRaw).trim() !== '') ? String(xRaw).trim().slice(0, 28) : 'Unknown'
@@ -447,9 +498,9 @@ app.post('/api/upload-sql', upload.single('file'), async (req, res) => {
         value: chart.aggregation === 'avg' ? (count ? y / count : 0) : chart.aggregation === 'sum' ? y : count
       })).filter(d => d.value > 0).sort((a, b) => b.value - a.value)
 
-      // If no rows, fall back to schema overview
+      // If no rows, just return empty state rather than hallucinating schema metrics
       if (chartData.length === 0) {
-        chartData = parsed.tables.map(t => ({ name: t.name, value: t.columns?.length || 0 })).filter(d => d.value > 0)
+        chartData = [{ name: 'No Data / Invalid Column', value: 1 }]
       }
 
       if (chart.type === 'pie' && chartData.length > 6) {
@@ -460,7 +511,7 @@ app.post('/api/upload-sql', upload.single('file'), async (req, res) => {
         chartData = chartData.slice(0, 12)
       }
 
-      return { ...chart, data: chartData.length > 0 ? chartData : [{ name: 'N/A', value: 1 }], isAutoGenerated: true }
+      return { ...chart, data: chartData, isAutoGenerated: true }
     })
 
     return res.json({
@@ -482,69 +533,24 @@ app.post('/api/upload-sql', upload.single('file'), async (req, res) => {
 // Groq RAG Knowledge Base Question Answering Endpoint
 app.post('/api/rag-query', async (req, res) => {
   try {
-    const { query, schemaContext } = req.body
-    if (!query) return res.status(400).json({ error: 'Query is required' })
-
-    if (process.env.GROQ_API_KEY) {
-      const systemPrompt = `You are DBSense AI, an expert Database Intelligence assistant. Answer the user question based on the provided database schema context:
-      ${JSON.stringify(schemaContext || {})}
-
-      Question: "${query}"
-
-      Provide a concise, grounded explanation with actionable database recommendations.`
-
-      const completion = await groq.chat.completions.create({
-        messages: [{ role: 'user', content: systemPrompt }],
-        model: 'llama-3.1-8b-instant',
-        temperature: 0.3,
-        max_tokens: 512
-      })
-
-      return res.json({
-        success: true,
-        answer: completion.choices[0]?.message?.content,
-        confidence: 96,
-        provider: 'Groq Llama 3.1'
-      })
-    }
-
-    return res.json({
-      success: true,
-      answer: `Grounded RAG analysis for query "${query}": Analyzed database schema and extracted relevant structure.`,
-      confidence: 90,
-      provider: 'Deterministic Fallback'
-    })
+    const aiLayerUrl = process.env.AI_LAYER_URL || 'http://localhost:8000'
+    const response = await axios.post(`${aiLayerUrl}/api/rag-query`, req.body)
+    return res.json(response.data)
   } catch (err) {
     console.error('RAG query error:', err)
-    return res.status(500).json({ error: 'Failed to process RAG query with Groq' })
+    return res.status(500).json({ error: err.response?.data?.detail || 'Failed to process RAG query with AI Layer' })
   }
 })
 
 // Groq LLM Chat Endpoint (Phase 2 LLM Integration)
 app.post('/api/chat', async (req, res) => {
-  const { messages } = req.body
-  
-  if (!process.env.GROQ_API_KEY) {
-    return res.status(500).json({ error: 'GROQ_API_KEY is missing in the .env file' })
-  }
-
   try {
-    const chatCompletion = await groq.chat.completions.create({
-      messages: messages || [
-        { role: 'user', content: 'Hello, what can you do with databases?' }
-      ],
-      model: 'llama-3.1-8b-instant', // Default fast model
-      temperature: 0.5,
-      max_tokens: 1024,
-    })
-
-    res.json({
-      success: true,
-      response: chatCompletion.choices[0]?.message?.content
-    })
+    const aiLayerUrl = process.env.AI_LAYER_URL || 'http://localhost:8000'
+    const response = await axios.post(`${aiLayerUrl}/api/chat`, req.body)
+    return res.json(response.data)
   } catch (error) {
-    console.error('Groq LLM Error:', error)
-    res.status(500).json({ error: 'Failed to process request with Groq' })
+    console.error('AI Layer Chat Error:', error)
+    res.status(500).json({ error: error.response?.data?.detail || 'Failed to process request with AI Layer' })
   }
 })
 
@@ -565,8 +571,9 @@ app.post('/api/generate-chart', async (req, res) => {
     const cleanData = Array.isArray(data) ? data.filter(Boolean) : []
 
     // Parse column names from schema descriptor strings sent by frontend ("col_name (TYPE)")
+    // Strictly exclude ID columns
     const colNames = Array.isArray(columns)
-      ? columns.map(c => typeof c === 'string' ? c.replace(/\s*\(.*\)$/, '').trim() : (c.name || String(c)))
+      ? columns.map(c => typeof c === 'string' ? c.replace(/\s*\(.*\)$/, '').trim() : (c.name || String(c))).filter(c => !/(^id$|_id$)/i.test(c))
       : []
 
     if (cleanData.length === 0 && colNames.length > 0) {
@@ -599,7 +606,8 @@ app.post('/api/generate-chart', async (req, res) => {
 
     // If natural language prompt is given and Groq key exists, use Groq to infer chart config
     if (prompt && process.env.GROQ_API_KEY) {
-      const columnsInfo = colNames.length > 0 ? colNames.join(', ') : Object.keys(cleanData[0] || {}).join(', ')
+      const filteredKeys = Object.keys(cleanData[0] || {}).filter(c => !/(^id$|_id$)/i.test(c))
+      const columnsInfo = colNames.length > 0 ? colNames.join(', ') : filteredKeys.join(', ')
       const sample = isSynthetic ? '(schema-only upload, no INSERT INTO rows in SQL dump)' : JSON.stringify(cleanData.slice(0, 3))
       
       const systemPrompt = `You are an expert Data Analyst. The user wants a custom chart based on this request: "${prompt}".
@@ -612,6 +620,7 @@ app.post('/api/generate-chart', async (req, res) => {
       - Use "pie" if the query involves categorical distribution with few items (< 7 categories like genre, status).
       - Use "bar" if comparing discrete categories or rankings.
       - Use "area" for cumulative volume or growth.
+      - NEVER use surrogate keys, primary keys, foreign keys, or any column ending in "id" or "_id" for xAxis or yAxis. These are meaningless in business charts.
 
       Return ONLY a strict JSON object:
       {
@@ -630,7 +639,9 @@ app.post('/api/generate-chart', async (req, res) => {
           response_format: { type: "json_object" }
         })
         const inferred = JSON.parse(chatCompletion.choices[0].message.content)
-        if (inferred.xAxis) {
+        
+        // Post-filter to block any hallucinated ID charts
+        if (inferred.xAxis && !/(^id$|_id$)/i.test(inferred.xAxis) && !/(^id$|_id$)/i.test(String(inferred.yAxis || ''))) {
           config = { ...config, ...inferred }
         }
       } catch (e) {

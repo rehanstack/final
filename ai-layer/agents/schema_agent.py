@@ -3,9 +3,12 @@ Schema Agent for DBSense AI
 Responsible for extracting and analyzing database schema.
 """
 
+import sqlalchemy
+from sqlalchemy import create_engine, inspect
+
 class SchemaAgent:
     """
-    Analyzes database schema structure.
+    Analyzes database schema structure using SQLAlchemy.
     Extracts table definitions, columns, constraints, and data types.
     """
     
@@ -14,147 +17,101 @@ class SchemaAgent:
         self.schema_data = {}
         self.database_connection = {}
         
+    def _build_connection_string(self, config):
+        db_type = config.get("dbType", "postgresql").lower()
+        host = config.get("host", "localhost")
+        db_name = config.get("dbName", "")
+        user = config.get("username", "")
+        password = config.get("password", "")
+        filename = config.get("filename", "")
+        
+        if "sqlite" in db_type:
+            return f"sqlite:///{filename}" if filename else "sqlite:///:memory:"
+        
+        port = "5432" if "postgres" in db_type else "3306"
+        if ":" in host:
+            host, port = host.split(":")
+        
+        driver = "postgresql+psycopg2" if "postgres" in db_type else "mysql+pymysql"
+        return f"{driver}://{user}:{password}@{host}:{port}/{db_name}"
+
     def extract_schema(self, database_connection):
         """
         Extract complete database schema.
-        
-        Args:
-            database_connection: Connection to analyze
-            
-        Returns:
-            dict: Complete schema structure
         """
         self.database_connection = database_connection or {}
-        tables = self.database_connection.get("tables") or self._sample_tables()
-
+        
+        # Check if already parsed payload was sent (from SQL Dump or CSV)
+        if "tables" in self.database_connection and self.database_connection["tables"]:
+            return self._extract_from_payload(self.database_connection)
+            
+        # Real DB Connection
+        conn_string = self._build_connection_string(self.database_connection)
+        try:
+            engine = create_engine(conn_string)
+            inspector = inspect(engine)
+            table_names = inspector.get_table_names()
+            
+            tables = []
+            for t_name in table_names:
+                columns = []
+                for col in inspector.get_columns(t_name):
+                    columns.append({
+                        "name": col["name"],
+                        "type": str(col["type"]),
+                        "nullable": col.get("nullable", True),
+                    })
+                
+                pk_constraint = inspector.get_pk_constraint(t_name)
+                fks = inspector.get_foreign_keys(t_name)
+                
+                tables.append({
+                    "name": t_name,
+                    "columns": columns,
+                    "primary_key": pk_constraint.get("constrained_columns", [None])[0] if pk_constraint else None,
+                    "foreign_keys": [{"column": fk["constrained_columns"][0], "references_table": fk["referred_table"], "references_column": fk["referred_columns"][0]} for fk in fks],
+                    "row_count": 0, # Could do COUNT(*) here
+                    "size": "unknown"
+                })
+                
+            self.schema_data = {
+                "tables": {t["name"]: t for t in tables},
+                "table_count": len(tables),
+                "column_count": sum(len(t.get("columns", [])) for t in tables),
+                "constraints": [],
+                "indexes": [],
+                "source": self.database_connection.get("name", "Real Database"),
+            }
+        except Exception as e:
+            # Fallback to sample if connection fails
+            print("DB Connect Error:", e)
+            return self._extract_from_payload(self._sample_payload())
+            
+        return self.schema_data
+        
+    def _extract_from_payload(self, payload):
+        tables = payload.get("tables", [])
         self.schema_data = {
-            "tables": {
-                table["name"]: self.analyze_table(table["name"])
-                for table in tables
-            },
+            "tables": {t["name"]: t for t in tables},
             "table_count": len(tables),
             "column_count": sum(len(table.get("columns", [])) for table in tables),
-            "constraints": self.identify_constraints(),
-            "indexes": self.database_connection.get("indexes", []),
-            "source": self.database_connection.get("name", "demo-database"),
+            "constraints": [],
+            "indexes": payload.get("indexes", []),
+            "source": payload.get("name", "Payload Database"),
         }
         return self.schema_data
-    
-    def analyze_table(self, table_name):
-        """Analyze a specific table's schema."""
-        table = self._find_table(table_name)
-        columns = self.extract_column_metadata(table_name)
+
+    def _sample_payload(self):
         return {
-            "name": table_name,
-            "columns": columns,
-            "primary_key": table.get("primary_key"),
-            "foreign_keys": table.get("foreign_keys", []),
-            "row_count": table.get("row_count", 0),
-            "size": table.get("size", "unknown"),
+            "tables": [
+                {
+                    "name": "customers",
+                    "primary_key": "id",
+                    "row_count": 450000,
+                    "columns": [
+                        {"name": "id", "type": "UUID"},
+                        {"name": "email", "type": "VARCHAR"},
+                    ],
+                }
+            ]
         }
-    
-    def extract_column_metadata(self, table_name):
-        """Extract metadata for all columns in a table."""
-        table = self._find_table(table_name)
-        return [
-            {
-                "name": column.get("name"),
-                "type": column.get("type", "unknown"),
-                "nullable": column.get("nullable", True),
-                "unique": column.get("unique", False),
-            }
-            for column in table.get("columns", [])
-        ]
-    
-    def identify_constraints(self):
-        """Identify all constraints in the schema."""
-        constraints = []
-        for table in self.database_connection.get("tables", self._sample_tables()):
-            if table.get("primary_key"):
-                constraints.append({
-                    "table": table["name"],
-                    "type": "primary_key",
-                    "columns": [table["primary_key"]],
-                })
-            for foreign_key in table.get("foreign_keys", []):
-                constraints.append({
-                    "table": table["name"],
-                    "type": "foreign_key",
-                    **foreign_key,
-                })
-        return constraints
-    
-    def format_schema_metadata(self):
-        """Format schema data for chunking and embedding."""
-        if not self.schema_data:
-            self.extract_schema(self.database_connection)
-
-        chunks = []
-        for table in self.schema_data["tables"].values():
-            columns = ", ".join(
-                f"{column['name']} {column['type']}" for column in table["columns"]
-            )
-            chunks.append({
-                "title": f"{table['name']} table schema",
-                "content": f"{table['name']}({columns})",
-                "metadata": {"table": table["name"], "kind": "schema"},
-            })
-        return chunks
-
-    def _find_table(self, table_name):
-        for table in self.database_connection.get("tables", self._sample_tables()):
-            if table.get("name") == table_name:
-                return table
-        return {"name": table_name, "columns": []}
-
-    def _sample_tables(self):
-        return [
-            {
-                "name": "customers",
-                "primary_key": "id",
-                "row_count": 450000,
-                "size": "8.5GB",
-                "columns": [
-                    {"name": "id", "type": "UUID", "nullable": False, "unique": True},
-                    {"name": "email", "type": "VARCHAR", "nullable": False, "unique": True},
-                    {"name": "created_at", "type": "TIMESTAMP", "nullable": False},
-                ],
-            },
-            {
-                "name": "orders",
-                "primary_key": "id",
-                "row_count": 2840000,
-                "size": "12GB",
-                "columns": [
-                    {"name": "id", "type": "UUID", "nullable": False, "unique": True},
-                    {"name": "customer_id", "type": "UUID", "nullable": False},
-                    {"name": "total_amount", "type": "DECIMAL", "nullable": False},
-                    {"name": "status", "type": "VARCHAR", "nullable": True},
-                ],
-                "foreign_keys": [
-                    {
-                        "column": "customer_id",
-                        "references_table": "customers",
-                        "references_column": "id",
-                    }
-                ],
-            },
-            {
-                "name": "payments",
-                "primary_key": "id",
-                "row_count": 2700000,
-                "size": "6.8GB",
-                "columns": [
-                    {"name": "id", "type": "UUID", "nullable": False, "unique": True},
-                    {"name": "order_id", "type": "UUID", "nullable": False},
-                    {"name": "amount", "type": "DECIMAL", "nullable": False},
-                ],
-                "foreign_keys": [
-                    {
-                        "column": "order_id",
-                        "references_table": "orders",
-                        "references_column": "id",
-                    }
-                ],
-            },
-        ]

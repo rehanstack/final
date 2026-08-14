@@ -14,8 +14,10 @@
     "backend:install": "cd backend && npm install",
     "backend:dev": "cd backend && npm run dev",
     "backend:start": "cd backend && npm start",
-    "install:all": "npm run frontend:install && npm run backend:install",
-    "dev": "concurrently \"npm run frontend:dev\" \"npm run backend:dev\""
+    "ai:install": "cd ai-layer && python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt",
+    "ai:dev": "cd ai-layer && source .venv/bin/activate && uvicorn main:app --reload --port 8000",
+    "install:all": "npm run frontend:install && npm run backend:install && npm run ai:install",
+    "dev": "concurrently \"npm run frontend:dev\" \"npm run backend:dev\" \"npm run ai:dev\""
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
