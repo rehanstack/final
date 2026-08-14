@@ -1,0 +1,130 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply bg-dark-950 text-white;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-bold;
+  }
+}
+
+@layer components {
+  .glass {
+    @apply bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl;
+  }
+
+  .glass-sm {
+    @apply bg-white/5 backdrop-blur-xl border border-white/10 rounded-lg;
+  }
+
+  .glass-dark {
+    @apply bg-dark-800/40 backdrop-blur-xl border border-white/10 rounded-xl;
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent;
+  }
+
+  .button-primary {
+    @apply px-6 py-3 bg-primary hover:bg-primary/90 rounded-lg font-semibold transition-all duration-300 flex items-center gap-2;
+  }
+
+  .button-secondary {
+    @apply px-6 py-3 bg-white/10 hover:bg-white/20 rounded-lg font-semibold transition-all duration-300 border border-white/20 flex items-center gap-2;
+  }
+
+  .card-glow {
+    @apply relative overflow-hidden group;
+  }
+
+  .card-glow::before {
+    content: '';
+    @apply absolute -inset-0.5 bg-gradient-to-r from-primary via-secondary to-accent opacity-0 group-hover:opacity-100 blur transition duration-500 rounded-xl -z-10;
+  }
+
+  .input-dark {
+    @apply bg-dark-800/50 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 transition-all;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium;
+  }
+
+  .badge-success {
+    @apply bg-green-500/20 text-green-300 border border-green-500/30;
+  }
+
+  .badge-warning {
+    @apply bg-yellow-500/20 text-yellow-300 border border-yellow-500/30;
+  }
+
+  .badge-danger {
+    @apply bg-red-500/20 text-red-300 border border-red-500/30;
+  }
+
+  .badge-info {
+    @apply bg-primary/20 text-primary border border-primary/30;
+  }
+
+  .animate-pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+}
+
+.gradient-animation {
+  background: linear-gradient(
+    -45deg,
+    rgba(124, 58, 237, 0.2),
+    rgba(6, 182, 212, 0.2),
+    rgba(236, 72, 153, 0.2),
+    rgba(124, 58, 237, 0.2)
+  );
+  background-size: 400% 400%;
+  animation: gradient 15s ease infinite;
+}
+
+@keyframes gradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.glow-text {
+  animation: glowText 3s ease-in-out infinite;
+}
+
+@keyframes glowText {
+  0%, 100% {
+    text-shadow: 0 0 20px rgba(124, 58, 237, 0.5);
+  }
+  50% {
+    text-shadow: 0 0 40px rgba(124, 58, 237, 0.8);
+  }
+}
+
+.flow-animation {
+  animation: flow 2s ease-in-out infinite;
+}
+
+@keyframes flow {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
