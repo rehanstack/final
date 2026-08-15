@@ -7,6 +7,10 @@
         "backend": {
             "root": "backend",
             "entrypoint": "server.js"
+        },
+        "ai-layer": {
+            "root": "ai-layer",
+            "entrypoint": "main.py"
         }
     },
     "rewrites": [
