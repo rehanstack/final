@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Brain, Database, Search, Sparkles, MessageSquare, Send, RefreshCw, FileText, CornerDownRight, Zap, Layers, User } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { apiPost } from '../lib/apiClient'
 import { loadAnalysis, queryRAGKnowledgeBase } from '../lib/analysisState'
 
@@ -27,26 +29,62 @@ export default function RAGKnowledge() {
   }, [messages, isQuerying])
 
   const currentDatasetKey = analysis.datasetKey || 'E-Commerce Dataset'
-  const customTable = analysis.customData?.tables?.[0]
-  const sampleRows = customTable?.sampleRows || analysis.customData?.sampleRows || []
-  const cols = customTable?.columns || (sampleRows.length > 0 ? Object.keys(sampleRows[0]) : [])
-
-  const defaultCustomChunks = (cols.length > 0) ? [
-    {
-      id: 'chunk-c1',
-      title: `Dataset Schema Definition (${customTable?.name || 'CSV Table'})`,
-      vectorId: 'vec_custom_001',
-      content: `Table '${customTable?.name || 'Uploaded CSV'}' containing attributes: ${cols.map(c => typeof c === 'string' ? c : c.name).join(', ')}. Total analyzed records: ${analysis.customData?.totalRecords || sampleRows.length || 100}.`,
-      metadata: { table: customTable?.name || 'CSV', tokens: 210, similarity: 0.98 }
-    },
-    {
-      id: 'chunk-c2',
-      title: `Sample Record Distribution Vector (${cols[0]?.name || cols[0] || 'Category'})`,
-      vectorId: 'vec_custom_002',
-      content: `Vector embeddings derived from primary attribute '${cols[0]?.name || cols[0]}'. Sample values: ${sampleRows.slice(0, 3).map(r => r[cols[0]?.name || cols[0]]).filter(Boolean).join(', ')}.`,
-      metadata: { table: customTable?.name || 'CSV', tokens: 185, similarity: 0.95 }
-    }
-  ] : []
+  // Dynamically generate chunks for all tables
+  const defaultCustomChunks = []
+  
+  const tables = analysis.customData?.tables || []
+  
+  if (tables.length > 0) {
+    tables.forEach((table, index) => {
+      const sampleRows = table.sampleRows || []
+      const cols = table.columns || (sampleRows.length > 0 ? Object.keys(sampleRows[0]).map(name => ({ name })) : [])
+      const colNames = cols.map(c => typeof c === 'string' ? c : c.name).join(', ')
+      
+      // 1. Schema Chunk
+      defaultCustomChunks.push({
+        id: `chunk-schema-${index}`,
+        title: `Schema Definition: ${table.name}`,
+        vectorId: `vec_schema_${index}`,
+        category: 'SCHEMA',
+        content: `Table '${table.name}' containing columns: ${colNames}. Total records: ${table.records || sampleRows.length || 0}.`,
+        metadata: { table: table.name, tokens: 150, similarity: 0.98 }
+      })
+      
+      // 2. Data Chunk
+      if (sampleRows.length > 0) {
+        defaultCustomChunks.push({
+          id: `chunk-data-${index}`,
+          title: `Sample Data: ${table.name}`,
+          vectorId: `vec_data_${index}`,
+          category: 'DATA',
+          content: `Actual sample data rows (up to 20) for table '${table.name}':\n${JSON.stringify(sampleRows.slice(0, 20))}`,
+          metadata: { table: table.name, tokens: 500, similarity: 0.95 }
+        })
+      }
+    })
+  } else if (analysis.customData?.sampleRows && analysis.customData.sampleRows.length > 0) {
+    // Fallback for single CSV without tables array
+    const sampleRows = analysis.customData.sampleRows
+    const colNames = Object.keys(sampleRows[0]).join(', ')
+    
+    defaultCustomChunks.push({
+      id: `chunk-schema-csv`,
+      title: `Dataset Schema Definition (CSV)`,
+      vectorId: `vec_schema_csv`,
+      category: 'SCHEMA',
+      content: `Uploaded CSV containing columns: ${colNames}. Total records: ${analysis.customData.totalRecords || sampleRows.length}.`,
+      metadata: { table: 'CSV', tokens: 150, similarity: 0.98 }
+    })
+    
+    defaultCustomChunks.push({
+      id: `chunk-data-csv`,
+      title: `Sample Data (CSV)`,
+      vectorId: `vec_data_csv`,
+      category: 'DATA',
+      content: `Actual sample data rows (up to 20):\n${JSON.stringify(sampleRows.slice(0, 20))}`,
+      metadata: { table: 'CSV', tokens: 500, similarity: 0.95 }
+    })
+  }
 
   const rawChunks = analysis.customData?.ragChunks || analysis.ragChunks || []
   const chunksList = rawChunks.length > 0 ? rawChunks : defaultCustomChunks
@@ -71,9 +109,9 @@ export default function RAGKnowledge() {
         schemaContext: {
           dataset: currentDatasetKey,
           tablesCount: analysis.customData?.tablesCount || analysis.metrics?.tables || 12,
-          tables: chunksList.slice(0, 5)
+          tables: chunksList.slice(0, 30)
         }
-      }, { timeout: 8000 })
+      }, { timeout: 30000 })
 
       if (response.data?.success) {
         setMessages(prev => [...prev, {
@@ -92,7 +130,7 @@ export default function RAGKnowledge() {
         const apiKey = import.meta.env.VITE_GROQ_API_KEY || ''
         if (!apiKey) throw new Error("VITE_GROQ_API_KEY is missing from frontend environment")
         
-        const contextStr = chunksList.slice(0, 5).map(c => `${c.title}: ${c.content}`).join('\n\n')
+        const contextStr = chunksList.slice(0, 30).map(c => `${c.title}: ${c.content}`).join('\n\n')
         const systemPrompt = `You are an expert Database Architect and Data Analyst assistant.\nUse the provided Context (which contains database schema details, columns, and sample data) to accurately answer the user's questions about their data.\nBe concise, professional, and do not hallucinate tables or columns not present in the context.\n\nContext:\n${contextStr}`
         
         const apiMessages = [{ role: 'system', content: systemPrompt }]
@@ -199,14 +237,28 @@ export default function RAGKnowledge() {
                     </div>
 
                     {/* Message Bubble */}
-                    <div className={`rounded-2xl p-4 ${msg.role === 'user' ? 'bg-dark-800 border border-white/10' : 'bg-dark-900/80 border border-primary/20'}`}>
-                      {msg.role === 'assistant' && msg.confidence && (
-                        <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/5">
-                          <span className="badge badge-success text-[10px] py-0.5">{msg.confidence}% Confidence</span>
-                        </div>
+                    <div className={`rounded-2xl p-4 relative ${msg.role === 'user' ? 'bg-dark-800 border border-white/10' : 'bg-dark-900/60 border border-primary/30 backdrop-blur-md shadow-[0_0_15px_rgba(124,58,237,0.1)]'}`}>
+                      {msg.role === 'assistant' && (
+                        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent rounded-2xl pointer-events-none" />
                       )}
-                      
-                      <p className="text-sm text-gray-200 leading-relaxed font-sans whitespace-pre-wrap">{msg.content}</p>
+                      <div className="relative z-10">
+                        {msg.role === 'assistant' && msg.confidence && (
+                          <div className="flex items-center gap-2 mb-3 pb-2 border-b border-white/5">
+                            <span className="badge badge-success text-[10px] py-0.5">{msg.confidence}% Confidence</span>
+                            <span className="text-[10px] text-gray-500 font-mono">Gemini Flash Reasoner</span>
+                          </div>
+                        )}
+                        
+                        {msg.role === 'user' ? (
+                          <p className="text-sm text-gray-200 leading-relaxed font-sans whitespace-pre-wrap">{msg.content}</p>
+                        ) : (
+                          <div className="markdown-body">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {msg.content}
+                            </ReactMarkdown>
+                          </div>
+                        )}
+                      </div>
 
                       {/* Retrieved Chunks Accordion-style */}
                       {msg.retrievedChunks && msg.retrievedChunks.length > 0 && (

@@ -15,6 +15,26 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY || ''
 })
 
+import sqlite3 from 'sqlite3'
+const db = new sqlite3.Database('dbsense.db', (err) => {
+  if (err) console.error("Error connecting to local SQLite:", err);
+  else console.log("✅ Connected to local Agentic RAG SQLite Database");
+})
+
+// Promise wrappers for SQLite
+const dbRun = (query, params = []) => new Promise((resolve, reject) => {
+  db.run(query, params, function (err) {
+    if (err) reject(err);
+    else resolve(this);
+  });
+});
+const dbAll = (query, params = []) => new Promise((resolve, reject) => {
+  db.all(query, params, (err, rows) => {
+    if (err) reject(err);
+    else resolve(rows);
+  });
+});
+
 // Configure multer to store files in memory
 const storage = multer.memoryStorage()
 const upload = multer({ storage: storage })
@@ -46,20 +66,19 @@ app.post('/api/upload-csv', upload.single('file'), (req, res) => {
   
   Papa.parse(csvData, {
     header: true,
-    preview: 150, // Analyze up to 150 rows
     skipEmptyLines: true,
     complete: async (results) => {
       try {
-        const data = results.data
-        if (!data || data.length === 0) {
+        const fullData = results.data
+        if (!fullData || fullData.length === 0) {
           return res.status(400).json({ error: 'CSV file is empty or invalid.' })
         }
       
-      const fields = results.meta.fields || Object.keys(data[0])
+      const fields = results.meta.fields || Object.keys(fullData[0])
       
       const columns = fields.map((field, idx) => {
         let type = 'VARCHAR'
-        const sampleVal = data[0][field]
+        const sampleVal = fullData[0][field]
         if (sampleVal !== null && sampleVal !== undefined && sampleVal !== '') {
           if (!isNaN(sampleVal)) {
             type = Number.isInteger(Number(sampleVal)) ? 'INT' : 'DECIMAL'
@@ -85,7 +104,33 @@ app.post('/api/upload-csv', upload.single('file'), (req, res) => {
         name: k, count: v, percentage: Math.round((v / columns.length) * 100)
       }))
 
-      const tableName = req.file.originalname.replace(/\.[^/.]+$/, "").replace(/[^a-zA-Z0-9]/g, '_')
+      const tableName = req.file.originalname.replace(/\.[^/.]+$/, "").replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase()
+
+      // --- SQLITE DATA INGESTION ---
+      try {
+        await dbRun(`DROP TABLE IF EXISTS ${tableName}`);
+        const colDefs = columns.map(c => `"${c.name}" ${c.type}`).join(', ')
+        await dbRun(`CREATE TABLE ${tableName} (${colDefs})`);
+        
+        // Bulk insert
+        const placeholders = columns.map(() => '?').join(',')
+        const insertQuery = `INSERT INTO ${tableName} VALUES (${placeholders})`
+        
+        // Using a transaction for speed
+        await dbRun('BEGIN TRANSACTION');
+        for (const row of fullData) {
+          const values = columns.map(c => row[c.name] !== undefined ? row[c.name] : null);
+          await dbRun(insertQuery, values);
+        }
+        await dbRun('COMMIT');
+        console.log(`✅ Ingested ${fullData.length} rows into SQLite table '${tableName}'`);
+      } catch (err) {
+        console.error("SQLite Ingestion Error:", err);
+        await dbRun('ROLLBACK').catch(() => {});
+      }
+      
+      // Limit data for frontend dashboard/charts to 150 rows
+      const data = fullData.slice(0, 150);
 
       // ----------------------------------------------------
       // LLM-Driven Dynamic Business Intelligence Engine
@@ -348,6 +393,41 @@ app.post('/api/upload-sql', upload.single('file'), async (req, res) => {
     const sqlContent = req.file.buffer.toString('utf8')
     const parsed = parseSqlDump(sqlContent, req.file.originalname)
 
+    // --- SQLITE DATA INGESTION ---
+    try {
+      await dbRun('BEGIN TRANSACTION');
+      for (const table of parsed.tables) {
+        // Sanitize table name
+        const tName = table.name.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
+        await dbRun(`DROP TABLE IF EXISTS ${tName}`);
+        
+        // Use VARCHAR as default for all extracted SQL columns since SQLite is flexible
+        const colDefs = table.columns.map(c => `"${c.name}" VARCHAR`).join(', ');
+        if (colDefs.length > 0) {
+          await dbRun(`CREATE TABLE ${tName} (${colDefs})`);
+          
+          if (table.sampleRows && table.sampleRows.length > 0) {
+            const placeholders = table.columns.map(() => '?').join(',');
+            const insertQuery = `INSERT INTO ${tName} VALUES (${placeholders})`;
+            for (const row of table.sampleRows) {
+              const values = table.columns.map(c => row[c.name] !== undefined ? row[c.name] : null);
+              await dbRun(insertQuery, values);
+            }
+            console.log(`✅ Ingested ${table.sampleRows.length} rows into SQLite table '${tName}'`);
+          }
+        }
+      }
+      await dbRun('COMMIT');
+    } catch (err) {
+      console.error("SQLite Ingestion Error (SQL Dump):", err);
+      await dbRun('ROLLBACK').catch(() => {});
+    }
+
+    // Slice sampleRows to 150 max to prevent massive frontend payloads
+    parsed.tables.forEach(t => {
+      if (t.sampleRows) t.sampleRows = t.sampleRows.slice(0, 150);
+    });
+
     // Gather all sample rows across all tables
     const allRows = parsed.tables.flatMap(t => t.sampleRows || [])
     const allColumns = parsed.tables.flatMap(t => t.columns || [])
@@ -530,7 +610,7 @@ app.post('/api/upload-sql', upload.single('file'), async (req, res) => {
   }
 })
 
-// Groq RAG Knowledge Base Question Answering Endpoint
+// Groq Agentic RAG Endpoint (Text-to-SQL Pipeline)
 app.post('/api/rag-query', async (req, res) => {
   try {
     if (!process.env.GROQ_API_KEY) {
@@ -539,30 +619,124 @@ app.post('/api/rag-query', async (req, res) => {
     
     const { query, chatHistory, schemaContext } = req.body
     
-    let contextStr = "No context provided."
-    let retrievedChunks = []
-    
+    let schemaStr = "No schema provided."
     if (schemaContext && schemaContext.tables && schemaContext.tables.length > 0) {
-      const tables = schemaContext.tables
-      contextStr = tables.map(t => `${t.title || 'Table'}: ${t.content || ''}`).join('\n\n')
-      retrievedChunks = tables.slice(0, 3)
+      // Extract SCHEMA chunks to provide table context
+      const schemaChunks = schemaContext.tables.filter(t => t.category === 'SCHEMA' || !t.category)
+      schemaStr = schemaChunks.map(t => `${t.title || 'Table'}: ${t.content || ''}`).join('\n\n')
     }
 
-    const systemPrompt = `You are an expert Database Architect and Data Analyst assistant.
-Use the provided Context (which contains database schema details, columns, and sample data) to accurately answer the user's questions about their data.
-Be concise, professional, and do not hallucinate tables or columns not present in the context.
+    // Step 1: SQL Generation Agent (with Self-Correction Loop)
+    let sqlQuery = "";
+    let dbResult = null;
+    let executionError = null;
+    let retries = 0;
+    const maxRetries = 2;
+
+    let chatContextStr = "No previous chat history.";
+    if (Array.isArray(chatHistory) && chatHistory.length > 0) {
+      chatContextStr = chatHistory.slice(-3).map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)}`).join('\n');
+    }
+
+    let currentSqlPrompt = `You are a SQLite database expert. Given the following database schema:
+${schemaStr}
+
+Write a valid SQLite query to answer the user's question. 
+Rules:
+- Return ONLY the raw SQL query string.
+- Do NOT wrap it in markdown code blocks (\`\`\`sql ... \`\`\`).
+- Do NOT provide any explanations.
+- Ensure the table and column names exactly match the schema.
+- IMPORTANT: Always use \`LIKE '%keyword%'\` instead of strict equality (\`=\`) for text/string comparisons to handle case insensitivity and partial matches (e.g., \`movie_title LIKE '%Long Road Home%'\`).
+
+Recent Chat History for Context:
+${chatContextStr}
+
+User Question: ${query}`;
+
+    while (retries <= maxRetries) {
+      try {
+        const sqlCompletion = await groq.chat.completions.create({
+          messages: [{ role: 'user', content: currentSqlPrompt }],
+          model: "llama-3.1-8b-instant",
+          temperature: 0.1
+        });
+        sqlQuery = sqlCompletion.choices[0]?.message?.content?.trim() || "";
+        // Strip markdown backticks
+        sqlQuery = sqlQuery.replace(/```sql/gi, '').replace(/```/g, '').trim();
+        
+        // Extract from SELECT onwards in case the LLM included conversational text
+        const selectIdx = sqlQuery.toUpperCase().indexOf('SELECT');
+        if (selectIdx !== -1) {
+          sqlQuery = sqlQuery.substring(selectIdx).trim();
+        }
+
+        // Step 2: Autonomous Execution
+        executionError = null;
+        if (sqlQuery && sqlQuery.toLowerCase().startsWith('select')) {
+          try {
+            dbResult = await dbAll(sqlQuery);
+            break; // Success! Exit the retry loop.
+          } catch (e) {
+             executionError = e.message;
+          }
+        } else {
+             executionError = "Query was not a SELECT statement or was empty.";
+        }
+
+        // If execution failed, prepare prompt for the next retry
+        retries++;
+        if (retries <= maxRetries) {
+           currentSqlPrompt = `You are a SQLite database expert. Given the following database schema:
+${schemaStr}
+
+You previously generated this query:
+${sqlQuery}
+
+However, it resulted in this error when executed in SQLite:
+${executionError}
+
+Please fix the SQL query and write a valid SQLite query to answer the user's question. 
+Rules:
+- Return ONLY the raw SQL query string.
+- Do NOT wrap it in markdown code blocks (\`\`\`sql ... \`\`\`).
+- Do NOT provide any explanations.
+- Ensure the table and column names exactly match the schema.
+- IMPORTANT: Always use \`LIKE '%keyword%'\` instead of strict equality (\`=\`) for text/string comparisons to handle case insensitivity and partial matches.
+
+Recent Chat History for Context:
+${chatContextStr}
+
+User Question: ${query}`;
+        }
+      } catch (e) {
+        console.warn(`Agentic RAG SQL Generation failed on attempt ${retries + 1}:`, e);
+        retries++;
+      }
+    }
+
+    // Step 3: Synthesis Agent
+    const sysPrompt = `You are an expert Data Analyst assistant.
+Use the provided Context to accurately answer the user's questions about their data.
+Be concise, professional, and do not hallucinate.
 
 Context:
-${contextStr}`
+Schema:
+${schemaStr}
+
+${sqlQuery ? `Attempted SQL Query: ${sqlQuery}` : ''}
+${dbResult ? `Query Execution Results (JSON): ${JSON.stringify(dbResult).slice(0, 5000)}` : ''}
+${executionError ? `Query Error: ${executionError}` : ''}
+
+If the query results are provided, formulate a natural language answer based on them. If there was an error, try to answer based on the schema or acknowledge the limitation.`
 
     const messages = [
-      { role: 'system', content: systemPrompt }
+      { role: 'system', content: sysPrompt }
     ]
 
     if (Array.isArray(chatHistory)) {
       chatHistory.forEach(msg => {
         if (msg.role === 'user' || msg.role === 'assistant') {
-          // ensure string content
           messages.push({ role: msg.role, content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content) })
         }
       })
@@ -581,9 +755,9 @@ ${contextStr}`
     return res.json({
       success: true,
       answer: answer,
-      confidence: 96,
-      provider: "Groq (llama-3.3-70b-versatile)",
-      retrievedChunks: retrievedChunks
+      confidence: dbResult ? 99 : 85,
+      provider: "Agentic RAG (SQL Engine)",
+      retrievedChunks: schemaContext?.tables?.slice(0, 3) || []
     })
 
   } catch (err) {

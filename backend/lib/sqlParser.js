@@ -100,8 +100,6 @@ export function parseSqlDump(sqlString, fileName = 'database.sql') {
       let tupleMatch
 
       while ((tupleMatch = tupleRegex.exec(valuesBody)) !== null) {
-        if (tablesMap[tableName].sampleRows.length >= 150) break
-
         const rawVals = tupleMatch[1].split(/,(?=(?:[^']*'[^']*')*[^']*$)/).map(v => v.trim().replace(/^'|'$|^"|"$/g, ''))
         const rowObj = {}
 
