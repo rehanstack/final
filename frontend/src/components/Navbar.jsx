@@ -61,7 +61,7 @@ export default function Navbar() {
             })}
           </div>
 
-          <h2>Version 1.4 :- RAG APPLICATION</h2>
+          <h2>Version 1.4.1 :- RAG APPLICATION</h2>
 
           <div className="hidden lg:flex items-center gap-3">
             {hasDb ? (
