@@ -2,6 +2,9 @@ import axios from 'axios'
 
 const PORTS = [5006, 5001, 5002, 5005, 5000, 5003]
 
+// Use Vercel/Vite environment variable if provided
+const API_BASE_URL = import.meta.env.VITE_API_URL || ''
+
 /**
  * Helper to check if a response is a valid API JSON response
  */
@@ -27,9 +30,11 @@ function isValidApiResponse(response) {
 export async function apiPost(endpoint, body, config = {}) {
   let lastError = null
 
-  // 1. Try relative endpoint first (works in production with Vercel rewrites or Vite proxy)
+  // 1. Try configured endpoint or relative endpoint first
+  const urlToTry = API_BASE_URL ? `${API_BASE_URL}${endpoint}` : endpoint;
+  
   try {
-    const response = await axios.post(endpoint, body, config)
+    const response = await axios.post(urlToTry, body, config)
     if (isValidApiResponse(response)) {
       return response
     }
@@ -40,17 +45,19 @@ export async function apiPost(endpoint, body, config = {}) {
     }
   }
 
-  // 2. Fallback for local development if the relative endpoint fails
-  for (const port of PORTS) {
-    try {
-      const response = await axios.post(`http://localhost:${port}${endpoint}`, body, config)
-      if (isValidApiResponse(response)) {
-        return response
-      }
-    } catch (err) {
-      lastError = err
-      if (isValidApiResponse(err.response)) {
-        return err.response
+  // 2. Fallback for local development if the relative endpoint fails (only try if no strict VITE_API_URL is set)
+  if (!API_BASE_URL) {
+    for (const port of PORTS) {
+      try {
+        const response = await axios.post(`http://localhost:${port}${endpoint}`, body, config)
+        if (isValidApiResponse(response)) {
+          return response
+        }
+      } catch (err) {
+        lastError = err
+        if (isValidApiResponse(err.response)) {
+          return err.response
+        }
       }
     }
   }

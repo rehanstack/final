@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: dbsense-ai-layer
+    env: python
+    rootDir: ai-layer
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.0
+      # Required API keys for AI processing
+      - key: GROQ_API_KEY
+        sync: false
+      - key: LANGCHAIN_API_KEY
+        sync: false
+
+  - type: web
+    name: dbsense-backend
+    env: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Points to the deployed python AI layer above automatically
+      - key: AI_LAYER_URL
+        fromService:
+          type: web
+          name: dbsense-ai-layer
+          envVarKey: RENDER_EXTERNAL_URL
+      # Required API keys for DB chart generation
+      - key: GROQ_API_KEY
+        sync: false
+      - key: LANGCHAIN_API_KEY
+        sync: false
