@@ -56,6 +56,29 @@ class RAGKnowledgeAgent:
     def retrieve_similar_chunks(self, query, top_k=5):
         docs = self.vector_store.similarity_search(query, k=top_k)
         return [{"content": d.page_content, "metadata": d.metadata} for d in docs]
+
+    def query_knowledge_base(self, query: str, top_k: int = 5):
+        """
+        Perform a real semantic similarity search against ChromaDB.
+        Returns a list of formatted chunk dicts ready to inject into an LLM prompt.
+        """
+        try:
+            docs = self.vector_store.similarity_search(query, k=top_k)
+            if not docs:
+                return []
+            return [
+                {
+                    "title": doc.metadata.get("table", "Schema") + " — " + doc.metadata.get("kind", "info"),
+                    "content": doc.page_content,
+                    "metadata": doc.metadata,
+                    "category": "SCHEMA",
+                }
+                for doc in docs
+            ]
+        except Exception as e:
+            # If the vector store is empty or unavailable, return an empty list
+            # so the caller can fall back gracefully
+            return []
     
     def update_knowledge_base(self, new_data):
         chunks = self.chunk_schema_metadata(new_data)

@@ -1,8 +1,34 @@
-import React, { useState, useMemo } from 'react'
-import { motion } from 'framer-motion'
+import React, { useState, useMemo, useRef } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
-import { FileSpreadsheet, Search, ChevronLeft, ChevronRight, Download, Filter, Database, Columns, AlertCircle, AlertTriangle, CheckCircle2, Table2 } from 'lucide-react'
+import { FileSpreadsheet, Search, ChevronLeft, ChevronRight, Download, Filter, Database, Columns, AlertCircle, AlertTriangle, CheckCircle2, Table2, Wand2, Copy, Check, Loader2, Code2, ChevronDown, Sparkles } from 'lucide-react'
 import { loadAnalysis, DATASETS } from '../lib/analysisState'
+
+// ─── Text-to-SQL helpers ─────────────────────────────────────────────────────
+
+/** Extract a SQL block from an LLM response. Returns bare SQL or null. */
+function extractSql(text) {
+  // Match ```sql ... ``` or ``` ... ```
+  const fenced = text.match(/```(?:sql)?\s*([\s\S]*?)```/i)
+  if (fenced) return fenced[1].trim()
+  // Match lines starting with SELECT / WITH / INSERT / UPDATE etc.
+  const lines = text.split('\n')
+  const sqlStart = lines.findIndex(l => /^\s*(SELECT|WITH|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP)\b/i.test(l))
+  if (sqlStart !== -1) return lines.slice(sqlStart).join('\n').trim()
+  return null
+}
+
+/** Build a compact schema string from allTables array for the LLM prompt */
+function buildSchemaContext(tables) {
+  return tables.map(t => {
+    const cols = (t.columns || []).map(c => {
+      const obj = typeof c === 'string' ? { name: c } : c
+      const flags = [obj.pk && 'PK', obj.fk && 'FK', obj.type].filter(Boolean).join(' ')
+      return flags ? `${obj.name} (${flags})` : obj.name
+    }).join(', ')
+    return `Table "${t.name}": ${cols}`
+  }).join('\n')
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -39,6 +65,64 @@ export default function DataExplorer() {
   const [pageSize, setPageSize] = useState(10)
   const [selectedColumnFilter, setSelectedColumnFilter] = useState('all')
   const [rowFilterMode, setRowFilterMode] = useState('all')
+
+  // ── Text-to-SQL state (only used when isSql === true) ─────────────────────
+  const [nlQuery, setNlQuery] = useState('')
+  const [sqlResult, setSqlResult] = useState(null)   // { sql: string, raw: string } | null
+  const [sqlLoading, setSqlLoading] = useState(false)
+  const [sqlError, setSqlError] = useState(null)
+  const [copied, setCopied] = useState(false)
+
+  const textareaRef = useRef(null)
+
+  const submitTextToSQL = async (promptOverride) => {
+    const question = (promptOverride ?? nlQuery).trim()
+    if (!question) return
+    setSqlLoading(true)
+    setSqlResult(null)
+    setSqlError(null)
+    try {
+      // Build schema context from ALL tables so the LLM knows the full database
+      const schemaStr = buildSchemaContext(allTables)
+      const schemaChunks = allTables.map(t => ({
+        category: 'SCHEMA',
+        title: `Table "${t.name}"`,
+        content: `Table "${t.name}" columns: ` + (t.columns || []).map(c => {
+          const o = typeof c === 'string' ? { name: c } : c
+          return [o.name, o.type, o.pk && 'PRIMARY KEY', o.fk && 'FOREIGN KEY'].filter(Boolean).join(' ')
+        }).join(', ')
+      }))
+
+      const systemInstruction = `You are an expert SQL query writer. The user will describe what they want in plain English. Respond with ONLY a valid SQL query inside a \`\`\`sql\`\`\` code block. Do NOT include any explanation — only the SQL.\n\nSchema:\n${schemaStr}`
+
+      const res = await fetch('/api/rag-query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: systemInstruction + '\n\nUser request: ' + question,
+          chatHistory: [],
+          schemaContext: { tables: schemaChunks }
+        })
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error || 'Failed to generate SQL')
+      const raw = data.answer || ''
+      const sql = extractSql(raw) || raw
+      setSqlResult({ sql, raw })
+    } catch (err) {
+      setSqlError(err.message || 'Something went wrong')
+    } finally {
+      setSqlLoading(false)
+    }
+  }
+
+  const handleCopy = () => {
+    if (!sqlResult?.sql) return
+    navigator.clipboard.writeText(sqlResult.sql).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
 
   // Active table — for SQL user can switch between tables
   const activeTable = allTables[selectedTableIdx] || allTables[0]
@@ -161,7 +245,6 @@ export default function DataExplorer() {
           </button>
         </div>
 
-        {/* SQL Table Selector — only for SQL with multiple tables */}
         {isSql && allTables.length > 1 && (
           <div className="mb-6 glass-dark p-4 rounded-2xl border border-white/10">
             <div className="flex items-center gap-3 mb-3">
@@ -189,6 +272,150 @@ export default function DataExplorer() {
             </div>
           </div>
         )}
+
+        {/* ── Text-to-SQL Panel — SQL Dump only ── */}
+        {isSql && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35, delay: 0.05 }}
+            className="mb-6 glass-dark rounded-2xl border border-primary/30 overflow-hidden"
+          >
+            {/* Panel header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-primary/5">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-primary/20 text-primary">
+                  <Wand2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-white">Text → SQL Generator</h2>
+                  <p className="text-[11px] text-gray-400">Describe what you want in English. Get a ready-to-paste SQL query.</p>
+                </div>
+              </div>
+              <span className="hidden sm:flex items-center gap-1.5 text-[10px] font-semibold text-primary/70 bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-full">
+                <Sparkles className="w-3 h-3" />
+                Powered by Groq llama-3.3-70b
+              </span>
+            </div>
+
+            <div className="p-5">
+              {/* Example chips */}
+              <div className="flex flex-wrap gap-2 mb-4">
+                {[
+                  'Show all tables with their row counts',
+                  'Find the top 5 customers by total order value',
+                  'List all foreign key relationships',
+                  'Show duplicate rows in any table',
+                ].map((chip) => (
+                  <button
+                    key={chip}
+                    onClick={() => { setNlQuery(chip); submitTextToSQL(chip) }}
+                    className="text-[11px] px-3 py-1.5 rounded-full border border-white/10 text-gray-400 hover:border-primary/50 hover:text-primary bg-dark-800/60 transition-all font-medium"
+                  >
+                    {chip}
+                  </button>
+                ))}
+              </div>
+
+              {/* Input area */}
+              <div className="flex gap-3 items-end">
+                <textarea
+                  ref={textareaRef}
+                  value={nlQuery}
+                  onChange={e => setNlQuery(e.target.value)}
+                  onKeyDown={e => {
+                    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                      e.preventDefault()
+                      submitTextToSQL()
+                    }
+                  }}
+                  placeholder="e.g. Show all orders placed in the last 30 days with customer names…"
+                  rows={3}
+                  className="input-dark flex-1 rounded-xl text-sm resize-none py-3 px-4 leading-relaxed placeholder:text-gray-600"
+                />
+                <button
+                  onClick={() => submitTextToSQL()}
+                  disabled={sqlLoading || !nlQuery.trim()}
+                  className="button-primary py-3 px-5 rounded-xl text-sm font-semibold flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap self-stretch"
+                >
+                  {sqlLoading
+                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</>
+                    : <><Code2 className="w-4 h-4" /> Generate SQL</>
+                  }
+                </button>
+              </div>
+              <p className="text-[10px] text-gray-600 mt-2 ml-1">Tip: Press <kbd className="font-mono bg-dark-700 px-1 py-0.5 rounded text-gray-400">⌘ Enter</kbd> to submit</p>
+
+              {/* Result area */}
+              <AnimatePresence mode="wait">
+                {sqlLoading && (
+                  <motion.div
+                    key="loading"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mt-5 flex items-center gap-3 text-gray-400 text-sm"
+                  >
+                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                    <span>Analysing your schema and composing SQL…</span>
+                  </motion.div>
+                )}
+
+                {sqlError && !sqlLoading && (
+                  <motion.div
+                    key="error"
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="mt-5 flex items-start gap-3 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm"
+                  >
+                    <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                    <span>{sqlError}</span>
+                  </motion.div>
+                )}
+
+                {sqlResult && !sqlLoading && (
+                  <motion.div
+                    key="result"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="mt-5"
+                  >
+                    {/* Code block header */}
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-dark-900/80 rounded-t-xl border border-white/10 border-b-0">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-red-400/60" />
+                        <span className="w-2.5 h-2.5 rounded-full bg-yellow-400/60" />
+                        <span className="w-2.5 h-2.5 rounded-full bg-green-400/60" />
+                        <span className="ml-3 text-[11px] font-mono text-gray-500 uppercase tracking-wider">SQL</span>
+                      </div>
+                      <button
+                        onClick={handleCopy}
+                        className={`flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1 rounded-lg transition-all ${
+                          copied
+                            ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                            : 'bg-white/5 text-gray-400 hover:text-white border border-white/10 hover:border-white/30'
+                        }`}
+                      >
+                        {copied ? <><Check className="w-3.5 h-3.5" /> Copied!</> : <><Copy className="w-3.5 h-3.5" /> Copy SQL</>}
+                      </button>
+                    </div>
+
+                    {/* SQL code */}
+                    <pre className="text-sm font-mono bg-dark-950/60 border border-white/10 rounded-b-xl p-5 overflow-x-auto leading-relaxed text-emerald-300 whitespace-pre-wrap break-words">
+                      {sqlResult.sql}
+                    </pre>
+
+                    <p className="text-[10px] text-gray-600 mt-2">Paste this query into your SQL platform. Always review before running on production data.</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </motion.div>
+        )}
+
+
 
         {/* Summary Bar */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
