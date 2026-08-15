@@ -16,9 +16,16 @@ const groq = new Groq({
 })
 
 import sqlite3 from 'sqlite3'
-const db = new sqlite3.Database('dbsense.db', (err) => {
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const dbPath = path.join(__dirname, 'dbsense.db')
+
+const db = new sqlite3.Database(dbPath, (err) => {
   if (err) console.error("Error connecting to local SQLite:", err);
-  else console.log("✅ Connected to local Agentic RAG SQLite Database");
+  else console.log(`✅ Connected to local Agentic RAG SQLite Database at ${dbPath}`);
 })
 
 // Promise wrappers for SQLite
@@ -421,6 +428,7 @@ app.post('/api/upload-sql', upload.single('file'), async (req, res) => {
     } catch (err) {
       console.error("SQLite Ingestion Error (SQL Dump):", err);
       await dbRun('ROLLBACK').catch(() => {});
+      return res.status(500).json({ error: `Failed to ingest SQL data into the backend engine: ${err.message}. Please check if the SQL file contains valid syntax.` });
     }
 
     // Slice sampleRows to 150 max to prevent massive frontend payloads
@@ -644,6 +652,7 @@ ${schemaStr}
 Write a valid SQLite query to answer the user's question. 
 Rules:
 - Return ONLY the raw SQL query string.
+- If the user's input is a general greeting (like "hi", "hello") or a question that absolutely does NOT require querying the database, return EXACTLY the string "NO_SQL".
 - Do NOT wrap it in markdown code blocks (\`\`\`sql ... \`\`\`).
 - Do NOT provide any explanations.
 - Ensure the table and column names exactly match the schema.
@@ -665,6 +674,11 @@ User Question: ${query}`;
         // Strip markdown backticks
         sqlQuery = sqlQuery.replace(/```sql/gi, '').replace(/```/g, '').trim();
         
+        if (sqlQuery === "NO_SQL" || sqlQuery.includes("NO_SQL")) {
+          executionError = "No database query required.";
+          break; // Skip SQL execution for greetings
+        }
+
         // Extract from SELECT onwards in case the LLM included conversational text
         const selectIdx = sqlQuery.toUpperCase().indexOf('SELECT');
         if (selectIdx !== -1) {
@@ -699,6 +713,7 @@ ${executionError}
 Please fix the SQL query and write a valid SQLite query to answer the user's question. 
 Rules:
 - Return ONLY the raw SQL query string.
+- If the user's input is a general greeting (like "hi", "hello") or a question that absolutely does NOT require querying the database, return EXACTLY the string "NO_SQL".
 - Do NOT wrap it in markdown code blocks (\`\`\`sql ... \`\`\`).
 - Do NOT provide any explanations.
 - Ensure the table and column names exactly match the schema.
@@ -710,7 +725,11 @@ ${chatContextStr}
 User Question: ${query}`;
         }
       } catch (e) {
-        console.warn(`Agentic RAG SQL Generation failed on attempt ${retries + 1}:`, e);
+        console.warn(`Agentic RAG SQL Generation failed on attempt ${retries + 1}:`, e.message || e);
+        if (e.status === 429 || (e.message && e.message.includes('429'))) {
+           executionError = "Groq API Rate Limit Exceeded (429) during SQL generation.";
+           break; // Stop retrying on rate limit to prevent spam
+        }
         retries++;
       }
     }
@@ -744,13 +763,22 @@ If the query results are provided, formulate a natural language answer based on 
 
     messages.push({ role: 'user', content: query || "Hello" })
 
-    const chatCompletion = await groq.chat.completions.create({
-      messages: messages,
-      model: "llama-3.3-70b-versatile",
-      temperature: 0.2
-    })
-
-    const answer = chatCompletion.choices[0]?.message?.content || "No response generated."
+    let answer = "No response generated.";
+    try {
+      const chatCompletion = await groq.chat.completions.create({
+        messages: messages,
+        model: "llama-3.3-70b-versatile",
+        temperature: 0.2
+      });
+      answer = chatCompletion.choices[0]?.message?.content || answer;
+    } catch (e) {
+      console.error("Synthesis Agent Error:", e.message || e);
+      if (e.status === 429 || (e.message && e.message.includes('429'))) {
+        answer = "I apologize, but we have temporarily hit the Groq API rate limit (429 Too Many Requests). Please wait a few moments before asking another question.";
+      } else {
+        answer = "I apologize, but I encountered an error while synthesizing the response. Please try again.";
+      }
+    }
 
     return res.json({
       success: true,
