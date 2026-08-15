@@ -5,10 +5,15 @@ import Papa from 'papaparse'
 import dotenv from 'dotenv'
 import Groq from 'groq-sdk'
 import axios from 'axios'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import { testDatabaseConnection, extractDatabaseSchema } from './lib/dbConnector.js'
 import { parseSqlDump } from './lib/sqlParser.js'
 
-dotenv.config()
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
+dotenv.config({ path: path.join(__dirname, '../.env') })
 
 // Initialize Groq LLM Client
 const groq = new Groq({
@@ -16,13 +21,8 @@ const groq = new Groq({
 })
 
 import sqlite3 from 'sqlite3'
-import path from 'path'
-import { fileURLToPath } from 'url'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
 const dbPath = path.join(__dirname, 'dbsense.db')
-
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) console.error("Error connecting to local SQLite:", err);
   else console.log(`✅ Connected to local Agentic RAG SQLite Database at ${dbPath}`);

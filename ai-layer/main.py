@@ -3,8 +3,10 @@ from pydantic import BaseModel
 from typing import Dict, Any, List
 from agents.master_agent import MasterAgent
 from dotenv import load_dotenv
+import os
 
-load_dotenv()
+env_path = os.path.join(os.path.dirname(__file__), '../.env')
+load_dotenv(env_path)
 
 app = FastAPI(title="DBSense AI Layer API")
 
