@@ -2,9 +2,11 @@ import React from 'react'
 import { Handle, Position } from 'reactflow'
 import { Database, Key, Link2 } from 'lucide-react'
 
-export default function TableNode({ data }) {
+export default function TableNode({ data, selected }) {
   return (
-    <div className="bg-dark-900 border border-white/10 rounded-xl overflow-hidden min-w-[250px] shadow-xl">
+    <div className={`bg-dark-900 rounded-xl overflow-hidden min-w-[250px] shadow-xl transition-all border-2 ${
+      selected ? 'border-primary shadow-[0_0_20px_rgba(124,58,237,0.5)]' : 'border-white/10'
+    }`}>
       {/* Target Handle (for incoming connections) */}
       <Handle type="target" position={Position.Top} className="w-3 h-3 bg-primary border-2 border-dark-950" />
       

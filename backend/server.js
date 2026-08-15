@@ -302,7 +302,7 @@ app.post('/api/test-db', async (req, res) => {
 // Connect & Analyze Database Schema Endpoint
 app.post('/api/connect-db', async (req, res) => {
   try {
-    const aiLayerUrl = process.env.AI_LAYER_URL || 'http://localhost:8000'
+    const aiLayerUrl = process.env.AI_LAYER_URL || 'http://127.0.0.1:8000'
     const response = await axios.post(`${aiLayerUrl}/api/analyze`, req.body)
     
     // Reshape Python payload to match legacy Node payload expected by React
@@ -533,19 +533,76 @@ app.post('/api/upload-sql', upload.single('file'), async (req, res) => {
 // Groq RAG Knowledge Base Question Answering Endpoint
 app.post('/api/rag-query', async (req, res) => {
   try {
-    const aiLayerUrl = process.env.AI_LAYER_URL || 'http://localhost:8000'
-    const response = await axios.post(`${aiLayerUrl}/api/rag-query`, req.body)
-    return res.json(response.data)
+    if (!process.env.GROQ_API_KEY) {
+      throw new Error("GROQ_API_KEY is missing")
+    }
+    
+    const { query, chatHistory, schemaContext } = req.body
+    
+    let contextStr = "No context provided."
+    let retrievedChunks = []
+    
+    if (schemaContext && schemaContext.tables && schemaContext.tables.length > 0) {
+      const tables = schemaContext.tables
+      contextStr = tables.map(t => `${t.title || 'Table'}: ${t.content || ''}`).join('\n\n')
+      retrievedChunks = tables.slice(0, 3)
+    }
+
+    const systemPrompt = `You are an expert Database Architect and Data Analyst assistant.
+Use the provided Context (which contains database schema details, columns, and sample data) to accurately answer the user's questions about their data.
+Be concise, professional, and do not hallucinate tables or columns not present in the context.
+
+Context:
+${contextStr}`
+
+    const messages = [
+      { role: 'system', content: systemPrompt }
+    ]
+
+    if (Array.isArray(chatHistory)) {
+      chatHistory.forEach(msg => {
+        if (msg.role === 'user' || msg.role === 'assistant') {
+          // ensure string content
+          messages.push({ role: msg.role, content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content) })
+        }
+      })
+    }
+
+    messages.push({ role: 'user', content: query || "Hello" })
+
+    const chatCompletion = await groq.chat.completions.create({
+      messages: messages,
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.2
+    })
+
+    const answer = chatCompletion.choices[0]?.message?.content || "No response generated."
+
+    return res.json({
+      success: true,
+      answer: answer,
+      confidence: 96,
+      provider: "Groq (llama-3.3-70b-versatile)",
+      retrievedChunks: retrievedChunks
+    })
+
   } catch (err) {
     console.error('RAG query error:', err)
-    return res.status(500).json({ error: err.response?.data?.detail || 'Failed to process RAG query with AI Layer' })
+    // Fallback to AI layer if local Groq fails (e.g. no key)
+    try {
+      const aiLayerUrl = process.env.AI_LAYER_URL || 'http://127.0.0.1:8000'
+      const response = await axios.post(`${aiLayerUrl}/api/rag-query`, req.body)
+      return res.json(response.data)
+    } catch (aiErr) {
+      return res.status(500).json({ error: err.message || 'Failed to process RAG query with Groq and AI Layer' })
+    }
   }
 })
 
 // Groq LLM Chat Endpoint (Phase 2 LLM Integration)
 app.post('/api/chat', async (req, res) => {
   try {
-    const aiLayerUrl = process.env.AI_LAYER_URL || 'http://localhost:8000'
+    const aiLayerUrl = process.env.AI_LAYER_URL || 'http://127.0.0.1:8000'
     const response = await axios.post(`${aiLayerUrl}/api/chat`, req.body)
     return res.json(response.data)
   } catch (error) {

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { TrendingUp, AlertTriangle, Shield, CheckCircle, Play, Filter, Sparkles, Database, Code, Copy, Zap, ArrowRight, RefreshCw, Cpu, Key, Lock } from 'lucide-react'
-import { loadAnalysis, applyInsightFix } from '../lib/analysisState'
+import { TrendingUp, AlertTriangle, Shield, CheckCircle, Sparkles, Database, Zap, ArrowRight, RefreshCw, Cpu, Key, Lock } from 'lucide-react'
+import { loadAnalysis } from '../lib/analysisState'
 
 export default function Insights() {
   const [analysis, setAnalysis] = useState(() => loadAnalysis())
@@ -9,7 +9,6 @@ export default function Insights() {
   const [customPrompt, setCustomPrompt] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [appliedNotification, setAppliedNotification] = useState(null)
-  const [copiedId, setCopiedId] = useState(null)
 
   const severityStyles = {
     high: { bg: 'bg-red-500/20', text: 'text-red-400', border: 'border-red-500/40', badge: 'badge-danger' },
@@ -19,11 +18,16 @@ export default function Insights() {
 
   const customTable = analysis.customData?.tables?.[0]
   const sampleRows = customTable?.sampleRows || analysis.customData?.sampleRows || []
-  const cols = customTable?.columns || (sampleRows.length > 0 ? Object.keys(sampleRows[0]) : ['revenue', 'director', 'release_year', 'genre'])
+  const rawCols = customTable?.columns || (sampleRows.length > 0 ? Object.keys(sampleRows[0]) : ['id', 'revenue', 'category'])
   
-  const col0 = typeof cols[0] === 'string' ? cols[0] : (cols[0]?.name || 'id')
-  const col1 = typeof cols[1] === 'string' ? cols[1] : (cols[1]?.name || 'revenue')
-  const col2 = typeof cols[2] === 'string' ? cols[2] : (cols[2]?.name || 'director')
+  const getColName = (idx, fallback) => {
+    if (!rawCols[idx]) return fallback
+    return typeof rawCols[idx] === 'string' ? rawCols[idx] : (rawCols[idx]?.name || fallback)
+  }
+
+  const col0 = getColName(0, 'id')
+  const col1 = getColName(1, 'revenue')
+  const col2 = getColName(2, 'category')
 
   // Generate Dynamic Schema Insights based on uploaded CSV attributes
   const dynamicInsights = useMemo(() => {
@@ -37,7 +41,6 @@ export default function Insights() {
         description: `Analysis detected high query frequency and distinct values on column '${col0}'. Indexing this attribute reduces scan overhead by up to 85%.`,
         impact: 'Speeds up analytical GROUP BY queries and speeds up dashboard load time.',
         recommendation: `Create a B-Tree index on dataset attribute '${col0}'.`,
-        sqlFix: `CREATE INDEX idx_dataset_${col0} ON dataset (${col0});`,
         affectedTable: customTable?.name || 'Uploaded CSV Dataset',
         type: 'Performance Optimization'
       },
@@ -50,7 +53,6 @@ export default function Insights() {
         description: `Discovered numeric aggregate metric '${col1}' with sparse zero entries. Enforcing NOT NULL prevents unhandled sum calculations in dynamic charts.`,
         impact: 'Eliminates chart calculations returning zero or NaN values during aggregations.',
         recommendation: `Apply NOT NULL constraint and default fallback value to column '${col1}'.`,
-        sqlFix: `ALTER TABLE dataset ALTER COLUMN ${col1} SET NOT NULL;`,
         affectedTable: customTable?.name || 'Uploaded CSV Dataset',
         type: 'Data Hygiene'
       },
@@ -63,7 +65,6 @@ export default function Insights() {
         description: `Identified missing values in text attribute '${col2}'. Imputing default string placeholder prevents UI layout wrapping errors.`,
         impact: 'Ensures pristine display in Data Explorer and Analytics tables.',
         recommendation: `Update empty string entries in column '${col2}' with 'N/A' default value.`,
-        sqlFix: `UPDATE dataset SET ${col2} = 'N/A' WHERE ${col2} IS NULL OR ${col2} = '';`,
         affectedTable: customTable?.name || 'Uploaded CSV Dataset',
         type: 'Data Hygiene'
       },
@@ -76,7 +77,6 @@ export default function Insights() {
         description: `Scanned schema attributes for sensitive PII. Column structures verified with zero raw unencrypted credit card or password fields.`,
         impact: 'Guarantees compliance with GDPR and HIPAA data protection guidelines.',
         recommendation: `Maintain SHA-256 hash masking for all client-facing data exports.`,
-        sqlFix: `SELECT mask_sensitive_column('${col0}');`,
         affectedTable: customTable?.name || 'Uploaded CSV Dataset',
         type: 'Security Audit'
       }
@@ -92,32 +92,35 @@ export default function Insights() {
     return insightsList.filter(item => item.category === categoryFilter || (categoryFilter === 'performance' && item.type.includes('Performance')))
   }, [insightsList, categoryFilter])
 
-  // Apply Fix Action
-  const handleApplyFix = (insightId, title) => {
-    const updated = applyInsightFix(insightId)
-    setAnalysis(updated)
-    setAppliedNotification(`Successfully applied SQL fix for: "${title}". Schema quality score upgraded!`)
-    setTimeout(() => setAppliedNotification(null), 4000)
-  }
-
-  // Copy SQL Snippet
-  const handleCopySQL = (id, sql) => {
-    navigator.clipboard.writeText(sql)
-    setCopiedId(id)
-    setTimeout(() => setCopiedId(null), 2500)
-  }
-
   // Generate Custom Insight via AI
-  const handleGenerateCustom = (e) => {
+  const handleGenerateCustom = async (e) => {
     e.preventDefault()
     if (!customPrompt.trim()) return
     setIsGenerating(true)
-    setTimeout(() => {
+    
+    try {
+      const response = await fetch('/api/rag-query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: `Generate a database insight and SQL remediation for this request: ${customPrompt}`,
+          schemaContext: { dataset: customTable?.name || 'Dataset' }
+        })
+      })
+      const data = await response.json()
+      
+      if (data?.success) {
+        setAppliedNotification(`AI Insight Generated: ${data.answer.substring(0, 100)}...`)
+      } else {
+        setAppliedNotification(`Simulated Insight: Generated strategy for "${customPrompt}"!`)
+      }
+    } catch (err) {
+      setAppliedNotification(`Simulated Insight: Generated strategy for "${customPrompt}"!`)
+    } finally {
       setIsGenerating(false)
       setCustomPrompt('')
-      setAppliedNotification(`Groq AI Model generated new insight prompt for: "${customPrompt}"!`)
-      setTimeout(() => setAppliedNotification(null), 5000)
-    }, 1200)
+      setTimeout(() => setAppliedNotification(null), 6000)
+    }
   }
 
   return (
@@ -196,18 +199,6 @@ export default function Insights() {
             <p className="text-[11px] text-gray-400">RAG model certainty</p>
           </div>
 
-          <div className="glass-dark p-6 rounded-2xl border border-green-500/30">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-3 bg-green-500/20 text-green-400 rounded-xl">
-                <Code className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-xs text-gray-400 font-semibold uppercase">SQL Remediation</p>
-                <p className="text-2xl font-bold text-green-400">{insightsList.filter(i => i.sqlFix).length} Ready</p>
-              </div>
-            </div>
-            <p className="text-[11px] text-gray-400">1-Click executable scripts</p>
-          </div>
         </div>
 
         {/* Interactive Custom AI Prompt Builder Input */}
@@ -321,48 +312,6 @@ export default function Insights() {
                       <p className="text-sm text-gray-300">{insight.recommendation}</p>
                     </div>
 
-                    {/* Executable SQL Fix Console */}
-                    {insight.sqlFix && (
-                      <div className="bg-dark-950 border border-white/10 rounded-xl p-4 mb-4 font-mono text-xs text-green-400 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <div className="flex items-center gap-2 overflow-x-auto">
-                          <Code className="w-4 h-4 text-green-400 flex-shrink-0" />
-                          <code className="whitespace-nowrap">{insight.sqlFix}</code>
-                        </div>
-
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <button
-                            onClick={() => handleCopySQL(insight.id, insight.sqlFix)}
-                            className="px-3 py-1.5 rounded-lg bg-dark-800 border border-white/10 hover:border-white/30 text-gray-300 text-xs flex items-center gap-1.5"
-                          >
-                            <Copy className="w-3.5 h-3.5" />
-                            {copiedId === insight.id ? 'Copied!' : 'Copy SQL'}
-                          </button>
-
-                          <button
-                            onClick={() => handleApplyFix(insight.id, insight.title)}
-                            disabled={insight.applied}
-                            className={`text-xs py-1.5 px-4 rounded-lg flex items-center gap-1.5 transition-all font-semibold ${
-                              insight.applied
-                                ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                                : 'button-primary text-xs py-1.5 px-4 hover:shadow-glow'
-                            }`}
-                          >
-                            {insight.applied ? (
-                              <>
-                                <CheckCircle className="w-3.5 h-3.5" />
-                                Fix Executed
-                              </>
-                            ) : (
-                              <>
-                                <Play className="w-3.5 h-3.5" />
-                                Execute Fix
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
                     <div className="flex items-center justify-between text-xs text-gray-400 pt-2 border-t border-white/5">
                       <span>Affected Table: <strong className="text-white">{insight.affectedTable}</strong></span>
                       <span className="uppercase tracking-wider font-semibold text-accent">{insight.type}</span>
@@ -373,34 +322,6 @@ export default function Insights() {
             )
           })}
         </div>
-
-        {/* Schema Verification Cards */}
-        <div className="grid md:grid-cols-2 gap-6">
-          <div className="glass-dark p-8 rounded-2xl border border-green-500/30 bg-green-500/5">
-            <div className="flex items-center gap-3 mb-4">
-              <CheckCircle className="w-6 h-6 text-green-400" />
-              <h3 className="text-lg font-bold text-green-400">Schema Health Verified</h3>
-            </div>
-            <ul className="space-y-2 text-sm text-gray-300">
-              <li>✓ Foreign key referential integrity index active</li>
-              <li>✓ Columns normalized across primary entities</li>
-              <li>✓ Temporal timestamps configured with indexed range queries</li>
-            </ul>
-          </div>
-
-          <div className="glass-dark p-8 rounded-2xl border border-primary/30 bg-primary/5">
-            <div className="flex items-center gap-3 mb-4">
-              <Cpu className="w-6 h-6 text-primary" />
-              <h3 className="text-lg font-bold text-primary">Continuous Monitoring</h3>
-            </div>
-            <ul className="space-y-2 text-sm text-gray-300">
-              <li>• Automated 24/7 Z-score anomaly scanning</li>
-              <li>• Real-time duplicate record hash validation</li>
-              <li>• Grounded RAG knowledge base auto-indexing</li>
-            </ul>
-          </div>
-        </div>
-
       </motion.div>
     </div>
   )

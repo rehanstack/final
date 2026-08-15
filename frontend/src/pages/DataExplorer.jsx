@@ -1,7 +1,27 @@
 import React, { useState, useMemo } from 'react'
 import { motion } from 'framer-motion'
-import { FileSpreadsheet, Search, ChevronLeft, ChevronRight, Download, Filter, Database, Columns, AlertCircle, AlertTriangle, CheckCircle2, Table2, ChevronDown } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { FileSpreadsheet, Search, ChevronLeft, ChevronRight, Download, Filter, Database, Columns, AlertCircle, AlertTriangle, CheckCircle2, Table2 } from 'lucide-react'
 import { loadAnalysis, DATASETS } from '../lib/analysisState'
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+/**
+ * Single source of truth: is this cell value "missing"?
+ * Handles null, undefined, empty string, and "NULL"/"null" string literals.
+ */
+function isMissingCell(val) {
+  if (val === null || val === undefined) return true
+  const s = String(val).trim()
+  return s === '' || s.toLowerCase() === 'null' || s.toLowerCase() === 'undefined'
+}
+
+/** Is this value an outlier (negative number / negative currency)? */
+function isOutlierCell(val) {
+  if (isMissingCell(val)) return false
+  const s = String(val).trim()
+  return s.startsWith('-') || s.includes('-$')
+}
 
 export default function DataExplorer() {
   const analysis = loadAnalysis()
@@ -28,28 +48,48 @@ export default function DataExplorer() {
     { id: 3, genre: 'Drama', release_year: 2021, revenue: '-$1,200', director: 'Denis Villeneuve', rating: null }
   ])
 
-  const rawCols = activeTable?.columns || (sampleRows.length > 0 ? Object.keys(sampleRows[0]) : [])
-  const colNames = rawCols.map(c => typeof c === 'string' ? c : (c.name || 'Column'))
+  // Schema column objects — for display metadata (type badges, pk/fk)
+  const rawCols = activeTable?.columns || []
+  const schemaColNames = rawCols.map(c => typeof c === 'string' ? c : (c.name || 'Column'))
 
-  // Problem Count Diagnostics
+  // colNames for display: schema order preferred, falling back to row keys
+  const colNames = useMemo(() => {
+    if (schemaColNames.length > 0) return schemaColNames
+    if (sampleRows.length > 0) return Object.keys(sampleRows[0])
+    return []
+  }, [schemaColNames, sampleRows])
+
+  /**
+   * colNamesForCounting: ONLY keys that actually exist in the row data.
+   * Prevents schema-only columns (not in INSERT INTO rows) from inflating the missing count.
+   */
+  const colNamesForCounting = useMemo(() => {
+    if (sampleRows.length === 0) return colNames
+    const rowKeys = new Set(Object.keys(sampleRows[0]))
+    const schemaInRows = colNames.filter(c => rowKeys.has(c))
+    return schemaInRows.length > 0 ? schemaInRows : Array.from(rowKeys)
+  }, [colNames, sampleRows])
+
+  // Problem Count Diagnostics — uses colNamesForCounting so counts match what's visible in the table
   const counts = useMemo(() => {
     let missingCount = 0
     let outlierCount = 0
     const problemRowIndices = new Set()
     sampleRows.forEach((row, idx) => {
       if (!row) return
-      colNames.forEach(cName => {
+      colNamesForCounting.forEach(cName => {
         const val = row[cName]
-        const strVal = val !== undefined && val !== null ? String(val).trim() : ''
-        if (strVal === '' || val === null || val === undefined) {
-          missingCount++; problemRowIndices.add(idx)
-        } else if (strVal.startsWith('-') || strVal.includes('-$')) {
-          outlierCount++; problemRowIndices.add(idx)
+        if (isMissingCell(val)) {
+          missingCount++
+          problemRowIndices.add(idx)
+        } else if (isOutlierCell(val)) {
+          outlierCount++
+          problemRowIndices.add(idx)
         }
       })
     })
     return { missing: missingCount, outliers: outlierCount, problemRows: problemRowIndices.size }
-  }, [sampleRows, colNames])
+  }, [sampleRows, colNamesForCounting])
 
   const visibleColNames = useMemo(() =>
     selectedColumnFilter === 'all' ? colNames : colNames.filter(c => c === selectedColumnFilter),
@@ -58,24 +98,19 @@ export default function DataExplorer() {
   const filteredRows = useMemo(() => {
     let rows = sampleRows
     if (rowFilterMode === 'problems') {
-      rows = sampleRows.filter(row => row && colNames.some(cName => {
-        const val = row[cName]; const s = val != null ? String(val).trim() : ''
-        return s === '' || val == null || s.startsWith('-') || s.includes('-$')
+      rows = sampleRows.filter(row => row && colNamesForCounting.some(cName => {
+        const val = row[cName]
+        return isMissingCell(val) || isOutlierCell(val)
       }))
     } else if (rowFilterMode === 'missing') {
-      rows = sampleRows.filter(row => row && colNames.some(cName => {
-        const val = row[cName]; return val == null || String(val).trim() === ''
-      }))
+      rows = sampleRows.filter(row => row && colNamesForCounting.some(cName => isMissingCell(row[cName])))
     } else if (rowFilterMode === 'outliers') {
-      rows = sampleRows.filter(row => row && colNames.some(cName => {
-        const s = String(row[cName] ?? '').trim()
-        return s.startsWith('-') || s.includes('-$')
-      }))
+      rows = sampleRows.filter(row => row && colNamesForCounting.some(cName => isOutlierCell(row[cName])))
     }
     if (!searchTerm.trim()) return rows
     const term = searchTerm.toLowerCase()
     return rows.filter(row => row && Object.values(row).some(v => v != null && String(v).toLowerCase().includes(term)))
-  }, [sampleRows, colNames, rowFilterMode, searchTerm])
+  }, [sampleRows, colNamesForCounting, rowFilterMode, searchTerm])
 
   const totalPages = Math.ceil(filteredRows.length / pageSize) || 1
   const paginatedRows = useMemo(() => filteredRows.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize), [filteredRows, pageIndex, pageSize])
@@ -311,16 +346,16 @@ export default function DataExplorer() {
                         <td className="py-3 px-4 text-gray-500 font-mono font-semibold">{rowNum}</td>
                         {visibleColNames.map(cName => {
                           const val = row?.[cName]
-                          const strVal = val != null ? String(val).trim() : ''
-                          const isMissing = strVal === '' || val == null
-                          const isOutlier = strVal.startsWith('-') || strVal.includes('-$')
+                          const missing = isMissingCell(val)
+                          const outlier = !missing && isOutlierCell(val)
+                          const strVal = missing ? '' : String(val).trim()
                           return (
                             <td key={cName} className="py-3 px-4 whitespace-nowrap font-mono">
-                              {isMissing ? (
+                              {missing ? (
                                 <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-1 w-fit">
                                   <AlertCircle className="w-3 h-3" /> Missing
                                 </span>
-                              ) : isOutlier ? (
+                              ) : outlier ? (
                                 <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 flex items-center gap-1 w-fit">
                                   <AlertTriangle className="w-3 h-3" /> {strVal}
                                 </span>
