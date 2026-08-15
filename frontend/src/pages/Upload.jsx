@@ -5,6 +5,7 @@ import { Upload as UploadIcon, FileJson, Database, ShoppingCart, Stethoscope, Gr
 import axios from 'axios'
 import Papa from 'papaparse'
 import { apiPost } from '../lib/apiClient'
+import { parseSqlDump } from '../lib/sqlParser'
 import { createAnalysisForDataset, saveAnalysis, DATASETS } from '../lib/analysisState'
 
 export default function UploadPage() {
@@ -140,21 +141,56 @@ export default function UploadPage() {
     } else if (uploadedFile.name.toLowerCase().endsWith('.sql')) {
       setIsUploading(true)
       setUploadError(null)
-      const formData = new FormData()
-      formData.append('file', uploadedFile)
 
+      // --- Try server first (works locally and when backend is available) ---
+      let serverSuccess = false
       try {
+        const formData = new FormData()
+        formData.append('file', uploadedFile)
         const response = await apiPost('/api/upload-sql', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
+          headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 10000
         })
         if (response.data?.success) {
           startAnalysis(response.data.datasetKey, response.data.customDetails)
-        } else {
-          setUploadError(response.data?.error || 'Failed to parse SQL dump file.')
+          serverSuccess = true
         }
       } catch (err) {
-        console.error("SQL upload error:", err)
-        setUploadError(err.response?.data?.error || 'Failed to parse SQL file on server.')
+        console.warn('SQL server upload failed, using client-side parser:', err)
+      }
+
+      if (serverSuccess) {
+        setIsUploading(false)
+        return
+      }
+
+      // --- Client-Side SQL Fallback (works on Vercel where multer is unavailable) ---
+      try {
+        const text = await uploadedFile.text()
+        const parsed = parseSqlDump(text, uploadedFile.name)
+
+        if (parsed.tables.length === 0) {
+          setUploadError('No CREATE TABLE statements found in the SQL file. Please upload a standard SQL dump.')
+          setIsUploading(false)
+          return
+        }
+
+        const customDetails = {
+          ...parsed,
+          name: uploadedFile.name,
+          dynamicKpis: [
+            { title: 'Tables in Schema', value: String(parsed.tablesCount) },
+            { title: 'Total Columns', value: String(parsed.columnsCount) },
+            { title: 'Relationships', value: String(parsed.relationshipsCount) },
+            { title: 'Sample Rows', value: String(parsed.totalRecords) }
+          ],
+          dynamicCharts: []
+        }
+
+        startAnalysis('SQL Dump', customDetails)
+      } catch (clientErr) {
+        console.error('Client-side SQL parse error:', clientErr)
+        setUploadError('Failed to parse SQL file. Please ensure it is a valid SQL dump with CREATE TABLE statements.')
       } finally {
         setIsUploading(false)
       }

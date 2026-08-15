@@ -61,7 +61,7 @@ export default function Navbar() {
             })}
           </div>
 
-          <h2>Version 1.3 :- Updated SQL Upload</h2>
+          <h2>Version 1.3.1 :- Updated SQL Upload</h2>
 
           <div className="hidden lg:flex items-center gap-3">
             {hasDb ? (
