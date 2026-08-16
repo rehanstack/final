@@ -57,7 +57,10 @@ app.use(express.json())
 app.get('/api/health', async (req, res) => {
   let aiLayerStatus = 'offline';
   try {
-    const aiLayerUrl = process.env.AI_LAYER_URL || 'http://127.0.0.1:8000';
+    let aiLayerUrl = process.env.AI_LAYER_URL || 'http://127.0.0.1:8000';
+    // Strip trailing slash in case the user pasted it with a slash at the end
+    aiLayerUrl = aiLayerUrl.replace(/\/$/, '');
+    
     // Small timeout so it doesn't hang forever if the AI layer is sleeping
     const response = await axios.get(`${aiLayerUrl}/health`, { timeout: 4000 });
     if (response.status === 200) {
@@ -75,6 +78,11 @@ app.get('/api/health', async (req, res) => {
     service: 'DBSense AI Backend',
     version: '1.0.0'
   })
+})
+
+// UptimeRobot Ping Endpoint
+app.get('/ping', (req, res) => {
+  res.send('pong')
 })
 
 // CSV Upload Endpoint

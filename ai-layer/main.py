@@ -30,6 +30,10 @@ class ChatRequest(BaseModel):
 def health_check():
     return {"status": "ok", "service": "AI Layer"}
 
+@app.get("/ping")
+def ping():
+    return "pong"
+
 @app.post("/api/analyze")
 def analyze_database(config: ConnectionConfig):
     try:
