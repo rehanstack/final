@@ -195,8 +195,12 @@ export default function RAGKnowledge() {
   }
 
   return (
-    <div className="p-4 sm:p-8 pb-20 max-w-[1600px] mx-auto w-full h-[calc(100vh-80px)] flex flex-col">
-      <motion.div variants={containerVariants} initial="hidden" animate="visible" className="flex flex-col h-full">
+    <div className="p-4 sm:p-8 pb-20 max-w-[1600px] mx-auto w-full h-[calc(100vh-80px)] flex flex-col relative">
+      {/* Ambient background glow */}
+      <div className="absolute top-20 -left-10 w-96 h-96 bg-primary/20 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-10 -right-10 w-96 h-96 bg-secondary/20 rounded-full blur-[120px] pointer-events-none" />
+
+      <motion.div variants={containerVariants} initial="hidden" animate="visible" className="flex flex-col h-full relative z-10">
         
         {/* Header */}
         <motion.div variants={itemVariants} className="mb-6 flex-shrink-0">
@@ -212,7 +216,9 @@ export default function RAGKnowledge() {
         <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
           
           {/* Left: Chat Interface */}
-          <motion.div variants={itemVariants} className="flex-1 glass-dark rounded-2xl border border-primary/30 flex flex-col min-h-[500px] overflow-hidden shadow-glow">
+          <motion.div variants={itemVariants} className="flex-1 glass-dark rounded-2xl border border-primary/40 flex flex-col min-h-[500px] overflow-hidden shadow-[0_0_30px_rgb(var(--color-primary)/0.15)] relative">
+            {/* Subtle overlay gradient */}
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5 pointer-events-none" />
             
             <div className="p-4 border-b border-white/10 bg-dark-900/50 flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-primary to-secondary flex items-center justify-center">
@@ -237,7 +243,7 @@ export default function RAGKnowledge() {
                     </div>
 
                     {/* Message Bubble */}
-                    <div className={`rounded-2xl p-4 relative ${msg.role === 'user' ? 'bg-dark-800 border border-white/10' : 'bg-dark-900/60 border border-primary/30 backdrop-blur-md shadow-[0_0_15px_rgba(124,58,237,0.1)]'}`}>
+                    <div className={`rounded-2xl p-4 relative ${msg.role === 'user' ? 'bg-dark-800 border border-white/10' : 'bg-dark-900/60 border border-primary/30 backdrop-blur-md shadow-[0_0_15px_rgb(var(--color-primary)/0.1)]'}`}>
                       {msg.role === 'assistant' && (
                         <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent rounded-2xl pointer-events-none" />
                       )}
@@ -318,7 +324,7 @@ export default function RAGKnowledge() {
               <form onSubmit={handleQuerySubmit} className="relative flex items-center">
                 <input type="text" value={queryInput} onChange={(e) => setQueryInput(e.target.value)}
                   placeholder="Ask anything about your database schema..."
-                  className="input-dark w-full pr-12 text-sm" />
+                  className="input-dark w-full pr-12 text-sm bg-dark-800/80 focus:bg-dark-900 border-white/20 focus:border-primary/50 shadow-inner" />
                 <button type="submit" disabled={isQuerying || !queryInput.trim()}
                   className="absolute right-2 p-1.5 rounded-md bg-primary hover:bg-primary/80 disabled:opacity-50 disabled:hover:bg-primary transition-colors">
                   <Send className="w-4 h-4 text-white" />

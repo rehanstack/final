@@ -21,6 +21,15 @@ export default {
           800: 'rgb(var(--color-gray-800) / <alpha-value>)',
           900: 'rgb(var(--color-gray-900) / <alpha-value>)',
         },
+        yellow: {
+          50: 'rgb(var(--color-yellow-50) / <alpha-value>)',
+          100: 'rgb(var(--color-yellow-100) / <alpha-value>)',
+          200: 'rgb(var(--color-yellow-200) / <alpha-value>)',
+          300: 'rgb(var(--color-yellow-300) / <alpha-value>)',
+          400: 'rgb(var(--color-yellow-400) / <alpha-value>)',
+          500: 'rgb(var(--color-yellow-500) / <alpha-value>)',
+          600: 'rgb(var(--color-yellow-600) / <alpha-value>)',
+        },
         'dark': {
           50: 'rgb(var(--color-dark-50) / <alpha-value>)',
           100: 'rgb(var(--color-dark-100) / <alpha-value>)',

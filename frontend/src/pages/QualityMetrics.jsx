@@ -299,12 +299,12 @@ export default function QualityMetrics() {
                 </div>
                 <ResponsiveContainer width="100%" height={240}>
                   <BarChart data={completenessChartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                    <XAxis dataKey="name" stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 11 }} />
-                    <YAxis stroke="rgba(255,255,255,0.5)" domain={[0, 100]} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-white) / 0.08)" />
+                    <XAxis dataKey="name" stroke="rgb(var(--color-white) / 0.5)" tick={{ fontSize: 11 }} />
+                    <YAxis stroke="rgb(var(--color-white) / 0.5)" domain={[0, 100]} />
                     <Tooltip 
                       formatter={(val, name, item) => [`${val}% Completeness`, item.payload.fullName]}
-                      contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }} 
+                      contentStyle={{ backgroundColor: 'rgb(var(--color-dark-900))', borderRadius: '12px', border: '1px solid rgb(var(--color-white) / 0.1)', color: 'rgb(var(--color-white))' }} 
                     />
                     <Bar dataKey="completeness" fill="rgb(var(--color-primary))" radius={[8, 8, 0, 0]} />
                   </BarChart>
@@ -335,7 +335,7 @@ export default function QualityMetrics() {
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }} />
+                    <Tooltip contentStyle={{ backgroundColor: 'rgb(var(--color-dark-900))', borderRadius: '12px', border: '1px solid rgb(var(--color-white) / 0.1)', color: 'rgb(var(--color-white))' }} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -350,12 +350,12 @@ export default function QualityMetrics() {
                 </div>
                 <ResponsiveContainer width="100%" height={240}>
                   <BarChart data={missingRatioChartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                    <XAxis dataKey="name" stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 11 }} />
-                    <YAxis stroke="rgba(255,255,255,0.5)" domain={[0, 50]} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-white) / 0.08)" />
+                    <XAxis dataKey="name" stroke="rgb(var(--color-white) / 0.5)" tick={{ fontSize: 11 }} />
+                    <YAxis stroke="rgb(var(--color-white) / 0.5)" domain={[0, 50]} />
                     <Tooltip 
                       formatter={(val, name, item) => [`${val}% Missing`, item.payload.fullName]}
-                      contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }} 
+                      contentStyle={{ backgroundColor: 'rgb(var(--color-dark-900))', borderRadius: '12px', border: '1px solid rgb(var(--color-white) / 0.1)', color: 'rgb(var(--color-white))' }} 
                     />
                     <Bar dataKey="missingPct" fill="#f59e0b" radius={[8, 8, 0, 0]} />
                   </BarChart>
@@ -372,14 +372,14 @@ export default function QualityMetrics() {
                 </div>
                 <ResponsiveContainer width="100%" height={240}>
                   <AreaChart data={cardinalityChartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                    <XAxis dataKey="name" stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 11 }} />
-                    <YAxis stroke="rgba(255,255,255,0.5)" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-white) / 0.08)" />
+                    <XAxis dataKey="name" stroke="rgb(var(--color-white) / 0.5)" tick={{ fontSize: 11 }} />
+                    <YAxis stroke="rgb(var(--color-white) / 0.5)" />
                     <Tooltip 
                       formatter={(val, name, item) => [`${val} Unique Values`, item.payload.fullName]}
-                      contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }} 
+                      contentStyle={{ backgroundColor: 'rgb(var(--color-dark-900))', borderRadius: '12px', border: '1px solid rgb(var(--color-white) / 0.1)', color: 'rgb(var(--color-white))' }} 
                     />
-                    <Area type="monotone" dataKey="uniqueCount" stroke="#ec4899" fill="#ec4899" fillOpacity={0.2} />
+                    <Area type="monotone" dataKey="uniqueCount" stroke="rgb(var(--color-accent))" fill="rgb(var(--color-accent))" fillOpacity={0.2} />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>

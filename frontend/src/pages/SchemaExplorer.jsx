@@ -133,8 +133,8 @@ export default function SchemaExplorer() {
       target: rel.to,
       animated: rel.status === 'Implicit Inferred',
       label: rel.status === 'Explicit FK' ? 'FK' : 'Inferred',
-      labelStyle: { fill: '#fff', fontSize: 10, fontWeight: 700 },
-      labelBgStyle: { fill: 'rgba(15, 23, 42, 0.8)', stroke: 'rgba(255,255,255,0.1)', rx: 4 },
+      labelStyle: { fill: 'rgb(var(--color-white))', fontSize: 10, fontWeight: 700 },
+      labelBgStyle: { fill: 'rgb(var(--color-dark-900) / 0.8)', stroke: 'rgb(var(--color-white) / 0.1)', rx: 4 },
       style: { stroke: rel.status === 'Explicit FK' ? 'rgb(var(--color-primary))' : 'rgb(var(--color-accent))', strokeWidth: 2 }
     }))
 
@@ -201,7 +201,7 @@ export default function SchemaExplorer() {
                 minZoom={0.15}
                 className="bg-dark-950"
               >
-                <Background color="rgba(255,255,255,0.08)" gap={20} size={1} />
+                <Background color="rgb(var(--color-white) / 0.08)" gap={20} size={1} />
                 <Controls className="bg-dark-900 border-white/10 fill-white" />
                 <MiniMap
                   nodeColor={(n) => n.id === selectedTable ? 'rgb(var(--color-primary))' : '#374151'}

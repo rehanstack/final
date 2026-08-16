@@ -79,10 +79,10 @@ function ChartRenderer({ chart }) {
   const pieData = data.filter(d => d.value > 0)
 
   const tooltipStyle = {
-    backgroundColor: '#0f172a',
+    backgroundColor: 'rgb(var(--color-dark-900))',
     borderRadius: '10px',
-    border: '1px solid rgba(255,255,255,0.12)',
-    color: '#fff'
+    border: '1px solid rgb(var(--color-white) / 0.12)',
+    color: 'rgb(var(--color-white))'
   }
 
   if (chart.type === 'pie') {
@@ -112,9 +112,9 @@ function ChartRenderer({ chart }) {
     return (
       <ResponsiveContainer width="100%" height={290}>
         <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.07)" />
-          <XAxis dataKey="name" stroke="rgba(255,255,255,0.4)" tick={{ fontSize: 11 }} />
-          <YAxis stroke="rgba(255,255,255,0.4)" tick={{ fontSize: 11 }} tickFormatter={fmtNum} width={52} />
+          <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-white) / 0.07)" />
+          <XAxis dataKey="name" stroke="rgb(var(--color-white) / 0.4)" tick={{ fontSize: 11 }} />
+          <YAxis stroke="rgb(var(--color-white) / 0.4)" tick={{ fontSize: 11 }} tickFormatter={fmtNum} width={52} />
           <Tooltip contentStyle={tooltipStyle} formatter={v => [fmtNum(v), chart.yAxis || 'Value']} />
           <Line type="monotone" dataKey="value" stroke="rgb(var(--color-primary))" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 7 }} />
         </LineChart>
@@ -128,15 +128,15 @@ function ChartRenderer({ chart }) {
         <AreaChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id={`ag-${chart.id}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#ec4899" stopOpacity={0.35} />
-              <stop offset="95%" stopColor="#ec4899" stopOpacity={0} />
+              <stop offset="5%" stopColor="rgb(var(--color-accent))" stopOpacity={0.35} />
+              <stop offset="95%" stopColor="rgb(var(--color-accent))" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.07)" />
-          <XAxis dataKey="name" stroke="rgba(255,255,255,0.4)" tick={{ fontSize: 11 }} />
-          <YAxis stroke="rgba(255,255,255,0.4)" tick={{ fontSize: 11 }} tickFormatter={fmtNum} width={52} />
+          <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-white) / 0.07)" />
+          <XAxis dataKey="name" stroke="rgb(var(--color-white) / 0.4)" tick={{ fontSize: 11 }} />
+          <YAxis stroke="rgb(var(--color-white) / 0.4)" tick={{ fontSize: 11 }} tickFormatter={fmtNum} width={52} />
           <Tooltip contentStyle={tooltipStyle} formatter={v => [fmtNum(v), chart.yAxis || 'Value']} />
-          <Area type="monotone" dataKey="value" stroke="#ec4899" strokeWidth={2.5} fill={`url(#ag-${chart.id})`} />
+          <Area type="monotone" dataKey="value" stroke="rgb(var(--color-accent))" strokeWidth={2.5} fill={`url(#ag-${chart.id})`} />
         </AreaChart>
       </ResponsiveContainer>
     )
@@ -146,9 +146,9 @@ function ChartRenderer({ chart }) {
   return (
     <ResponsiveContainer width="100%" height={290}>
       <BarChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.07)" />
-        <XAxis dataKey="name" stroke="rgba(255,255,255,0.4)" tick={{ fontSize: 11 }} />
-        <YAxis stroke="rgba(255,255,255,0.4)" tick={{ fontSize: 11 }} tickFormatter={fmtNum} width={52} />
+        <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-white) / 0.07)" />
+        <XAxis dataKey="name" stroke="rgb(var(--color-white) / 0.4)" tick={{ fontSize: 11 }} />
+        <YAxis stroke="rgb(var(--color-white) / 0.4)" tick={{ fontSize: 11 }} tickFormatter={fmtNum} width={52} />
         <Tooltip contentStyle={tooltipStyle} formatter={v => [fmtNum(v), chart.yAxis || 'Value']} />
         <Bar dataKey="value" radius={[5, 5, 0, 0]}>
           {data.map((_, i) => <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />)}

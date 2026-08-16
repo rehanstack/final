@@ -82,7 +82,7 @@ export default function Navbar() {
           </Link>
           <div className="hidden sm:flex items-center">
             <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[10px] font-semibold text-gray-400 tracking-wide uppercase">
-              v1.7.1 Cream UI
+              v1.7.2 Cream UI
             </span>
           </div>
         </div>

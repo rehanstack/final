@@ -17,6 +17,14 @@
     --color-gray-800: 31 41 55;
     --color-gray-900: 17 24 39;
     
+    --color-yellow-50: 254 252 232;
+    --color-yellow-100: 254 240 138;
+    --color-yellow-200: 253 224 71;
+    --color-yellow-300: 253 224 71;
+    --color-yellow-400: 250 204 21;
+    --color-yellow-500: 234 179 8;
+    --color-yellow-600: 202 138 4;
+    
     --color-dark-50: 249 250 251;
     --color-dark-100: 243 244 246;
     --color-dark-200: 229 231 235;
@@ -39,12 +47,26 @@
     --color-black: 255 255 255;
     --color-white: 26 26 26;
     
-    /* Make gray colors slightly darker for contrast on cream bg */
-    --color-gray-100: 229 231 235;
-    --color-gray-200: 209 213 219;
-    --color-gray-300: 156 163 175;
+    /* Invert gray scale for cream theme so light text becomes dark */
+    --color-gray-50: 17 24 39;
+    --color-gray-100: 31 41 55;
+    --color-gray-200: 55 65 81;
+    --color-gray-300: 75 85 99;
     --color-gray-400: 107 114 128;
-    --color-gray-500: 75 85 99;
+    --color-gray-500: 156 163 175;
+    --color-gray-600: 209 213 219;
+    --color-gray-700: 229 231 235;
+    --color-gray-800: 243 244 246;
+    --color-gray-900: 249 250 251;
+
+    /* Very dark amber/brown for visible warnings/keys on cream */
+    --color-yellow-50: 217 119 6;
+    --color-yellow-100: 180 83 9;
+    --color-yellow-200: 146 64 14;
+    --color-yellow-300: 120 53 15;
+    --color-yellow-400: 113 63 18;
+    --color-yellow-500: 69 26 3;
+    --color-yellow-600: 66 32 6;
     
     /* Swap dark backgrounds for cream colors */
     --color-dark-950: 253 251 247;
