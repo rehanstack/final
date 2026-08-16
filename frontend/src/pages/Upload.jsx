@@ -7,6 +7,7 @@ import Papa from 'papaparse'
 import { apiPost } from '../lib/apiClient'
 import { parseSqlDump } from '../lib/sqlParser'
 import { createAnalysisForDataset, saveAnalysis, DATASETS } from '../lib/analysisState'
+import { useServerStatus } from '../context/ServerStatusContext'
 
 export default function UploadPage() {
   const [dragActive, setDragActive] = useState(false)
@@ -26,9 +27,12 @@ export default function UploadPage() {
   })
 
   const navigate = useNavigate()
+  const { isOnline } = useServerStatus()
 
   const handleDrag = (e) => {
     e.preventDefault()
+    if (!isOnline) return
+
     e.stopPropagation()
     if (e.type === 'dragenter' || e.type === 'dragover') {
       setDragActive(true)
@@ -40,6 +44,7 @@ export default function UploadPage() {
   const handleDrop = (e) => {
     e.preventDefault()
     e.stopPropagation()
+    if (!isOnline) return
     setDragActive(false)
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const file = e.dataTransfer.files[0]
@@ -346,25 +351,28 @@ export default function UploadPage() {
                   )}
                   <button
                     onClick={handleCustomFileUploadStart}
-                    disabled={isUploading}
+                    disabled={isUploading || !isOnline}
                     className="button-primary py-2 px-4 text-sm disabled:opacity-50"
                   >
                     {isUploading ? (
                       <><Loader2 className="w-4 h-4 animate-spin" /> Processing Backend...</>
+                    ) : !isOnline ? (
+                      'Servers Waking Up...'
                     ) : (
                       'Analyze File'
                     )}
                   </button>
                 </div>
               ) : (
-                <label className="button-primary inline-flex cursor-pointer hover:shadow-glow">
+                <label className={`button-primary inline-flex cursor-pointer hover:shadow-glow ${!isOnline ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}`}>
                   <FileJson className="w-5 h-5" />
-                  <span>Browse Files</span>
+                  <span>{isOnline ? 'Browse Files' : 'Servers Waking Up...'}</span>
                   <input
                     type="file"
                     accept=".sql,.db,.sqlite,.json,.csv"
                     className="hidden"
                     onChange={handleFileSelect}
+                    disabled={!isOnline}
                   />
                 </label>
               )}
@@ -471,14 +479,16 @@ export default function UploadPage() {
                 <button
                   type="button"
                   onClick={handleTestConnection}
-                  disabled={testingConn}
-                  className="button-secondary text-sm"
+                  disabled={testingConn || !isOnline}
+                  className="button-secondary text-sm disabled:opacity-50"
                 >
                   {testingConn ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin text-primary" />
                       Testing Connection...
                     </>
+                  ) : !isOnline ? (
+                    'Servers Offline'
                   ) : (
                     'Test Connection'
                   )}
@@ -494,10 +504,11 @@ export default function UploadPage() {
 
               <button
                 type="submit"
-                className="button-primary hover:shadow-glow"
+                disabled={isUploading || !isOnline}
+                className="button-primary hover:shadow-glow disabled:opacity-50"
               >
                 <Database className="w-5 h-5" />
-                Analyze Connected Database
+                {isOnline ? 'Analyze Connected Database' : 'Servers Offline'}
               </button>
             </div>
           </form>

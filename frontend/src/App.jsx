@@ -14,34 +14,39 @@ import RAGKnowledge from './pages/RAGKnowledge'
 import Architecture from './pages/Architecture'
 import Security from './pages/Security'
 import { AnimatePresence } from 'framer-motion'
+import { ServerStatusProvider } from './context/ServerStatusContext'
+import DebugMenu from './components/DebugMenu'
 
 export default function App() {
   return (
-    <Router>
-      <div className="min-h-screen bg-dark-950 gradient-animation">
-        <Navbar />
-        <AnimatePresence mode="wait">
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/" element={<Landing />} />
-            <Route path="/upload" element={<Upload />} />
-            <Route path="/processing" element={<Processing />} />
-            <Route path="/architecture" element={<Architecture />} />
-            <Route path="/security" element={<Security />} />
+    <ServerStatusProvider>
+      <Router>
+        <div className="min-h-screen bg-dark-950 gradient-animation">
+          <Navbar />
+          <DebugMenu />
+          <AnimatePresence mode="wait">
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/" element={<Landing />} />
+              <Route path="/upload" element={<Upload />} />
+              <Route path="/processing" element={<Processing />} />
+              <Route path="/architecture" element={<Architecture />} />
+              <Route path="/security" element={<Security />} />
 
-            {/* Dashboard Redirect */}
-            <Route path="/dashboard" element={<Navigate to="/business-intel" replace />} />
+              {/* Dashboard Redirect */}
+              <Route path="/dashboard" element={<Navigate to="/business-intel" replace />} />
 
-            {/* App Layout Routes (Require Authentication/Database) */}
-            <Route path="/business-intel" element={<AppLayout><BusinessIntel /></AppLayout>} />
-            <Route path="/schema-explorer" element={<AppLayout><SchemaExplorer /></AppLayout>} />
-            <Route path="/quality-metrics" element={<AppLayout><QualityMetrics /></AppLayout>} />
-            <Route path="/data-explorer" element={<AppLayout><DataExplorer /></AppLayout>} />
-            <Route path="/insights" element={<AppLayout><Insights /></AppLayout>} />
-            <Route path="/rag-knowledge" element={<AppLayout><RAGKnowledge /></AppLayout>} />
-          </Routes>
-        </AnimatePresence>
-      </div>
-    </Router>
+              {/* App Layout Routes (Require Authentication/Database) */}
+              <Route path="/business-intel" element={<AppLayout><BusinessIntel /></AppLayout>} />
+              <Route path="/schema-explorer" element={<AppLayout><SchemaExplorer /></AppLayout>} />
+              <Route path="/quality-metrics" element={<AppLayout><QualityMetrics /></AppLayout>} />
+              <Route path="/data-explorer" element={<AppLayout><DataExplorer /></AppLayout>} />
+              <Route path="/insights" element={<AppLayout><Insights /></AppLayout>} />
+              <Route path="/rag-knowledge" element={<AppLayout><RAGKnowledge /></AppLayout>} />
+            </Routes>
+          </AnimatePresence>
+        </div>
+      </Router>
+    </ServerStatusProvider>
   )
 }

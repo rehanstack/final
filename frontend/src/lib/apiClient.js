@@ -30,8 +30,13 @@ function isValidApiResponse(response) {
 export async function apiPost(endpoint, body, config = {}) {
   let lastError = null
 
+  // Debugging log to help users know if Vercel env var was injected properly
+  if (!API_BASE_URL) {
+    console.warn("⚠️ VITE_API_URL is missing. API calls will try relative paths and fallback to localhost. If you are on Vercel, make sure VITE_API_URL is set in Settings -> Environment Variables and you REDEPLOYED.");
+  }
+
   // 1. Try configured endpoint or relative endpoint first
-  const urlToTry = API_BASE_URL ? `${API_BASE_URL}${endpoint}` : endpoint;
+  const urlToTry = API_BASE_URL ? `${API_BASE_URL.replace(/\/$/, '')}${endpoint}` : endpoint;
   
   try {
     const response = await axios.post(urlToTry, body, config)
@@ -50,6 +55,49 @@ export async function apiPost(endpoint, body, config = {}) {
     for (const port of PORTS) {
       try {
         const response = await axios.post(`http://localhost:${port}${endpoint}`, body, config)
+        if (isValidApiResponse(response)) {
+          return response
+        }
+      } catch (err) {
+        lastError = err
+        if (isValidApiResponse(err.response)) {
+          return err.response
+        }
+      }
+    }
+  }
+  
+  throw lastError || new Error('Failed to connect to DBSense backend server. Check browser console for missing VITE_API_URL warnings.')
+}
+
+/**
+ * Robust API GET request helper
+ */
+export async function apiGet(endpoint, config = {}) {
+  let lastError = null
+
+  if (!API_BASE_URL) {
+    console.warn("⚠️ VITE_API_URL is missing.");
+  }
+
+  const urlToTry = API_BASE_URL ? `${API_BASE_URL.replace(/\/$/, '')}${endpoint}` : endpoint;
+  
+  try {
+    const response = await axios.get(urlToTry, config)
+    if (isValidApiResponse(response)) {
+      return response
+    }
+  } catch (err) {
+    lastError = err
+    if (isValidApiResponse(err.response)) {
+      return err.response
+    }
+  }
+
+  if (!API_BASE_URL) {
+    for (const port of PORTS) {
+      try {
+        const response = await axios.get(`http://localhost:${port}${endpoint}`, config)
         if (isValidApiResponse(response)) {
           return response
         }

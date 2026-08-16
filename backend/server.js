@@ -53,10 +53,24 @@ let PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 5001
 app.use(cors())
 app.use(express.json())
 
-// Health Check
-app.get('/health', (req, res) => {
+// Health Check (Cascading to AI Layer)
+app.get('/api/health', async (req, res) => {
+  let aiLayerStatus = 'offline';
+  try {
+    const aiLayerUrl = process.env.AI_LAYER_URL || 'http://127.0.0.1:8000';
+    // Small timeout so it doesn't hang forever if the AI layer is sleeping
+    const response = await axios.get(`${aiLayerUrl}/health`, { timeout: 4000 });
+    if (response.status === 200) {
+      aiLayerStatus = 'online';
+    }
+  } catch (err) {
+    console.error('AI layer health check failed:', err.message);
+  }
+
   res.json({
     status: 'ok',
+    backend: 'online',
+    aiLayer: aiLayerStatus,
     timestamp: new Date().toISOString(),
     service: 'DBSense AI Backend',
     version: '1.0.0'
