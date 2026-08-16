@@ -32,14 +32,19 @@ export default function Sidebar() {
       <div className="p-6 border-b border-white/10">
         <p className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-2">Active Connection</p>
         <div className="flex items-center gap-3 bg-dark-900 p-3 rounded-xl border border-white/5">
-          <div className="w-8 h-8 rounded-lg bg-green-500/20 border border-green-500/30 flex items-center justify-center">
+          <div className="w-8 h-8 rounded-lg bg-green-500/20 border border-green-500/30 flex items-center justify-center shrink-0">
             <Database className="w-4 h-4 text-green-400" />
           </div>
-          <div className="overflow-hidden">
-            <p className="font-semibold text-sm text-white truncate w-full">{analysis.dataset || 'Unknown DB'}</p>
-            <p className="text-xs text-green-400 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span> Connected
-            </p>
+          <div className="overflow-hidden min-w-0 flex-1">
+            <p className="font-semibold text-sm text-white truncate" title={analysis.dataset}>{analysis.dataset || 'Unknown DB'}</p>
+            <div className="flex items-center justify-between mt-0.5">
+              <p className="text-xs text-green-400 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span> Connected
+              </p>
+              <span className="text-[10px] uppercase font-bold text-gray-500 bg-white/5 px-1.5 py-0.5 rounded">
+                {analysis.datasetKey === 'Custom CSV' ? 'CSV' : analysis.datasetKey === 'SQL Dump' ? 'SQL' : 'DEMO'}
+              </span>
+            </div>
           </div>
         </div>
       </div>

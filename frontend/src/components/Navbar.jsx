@@ -1,26 +1,30 @@
-import React, { useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import React, { useState, useEffect } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Zap, Menu, X, Shield, GitBranch, Upload as UploadIcon, LogOut } from 'lucide-react'
 import { loadAnalysis, clearAnalysis } from '../lib/analysisState'
-import { useNavigate } from 'react-router-dom'
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
+  const [hasDb, setHasDb] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
-  const analysis = loadAnalysis()
-  const hasDb = analysis && analysis.hasAnalysis
+  
+  // Update hasDb whenever the route changes (e.g., when a user navigates after an upload)
+  useEffect(() => {
+    const analysis = loadAnalysis()
+    setHasDb(Boolean(analysis?.hasAnalysis))
+  }, [location.pathname])
 
   const isActive = (path) => location.pathname === path
 
   const handleDisconnect = () => {
     clearAnalysis()
+    setHasDb(false)
     navigate('/upload')
     setIsOpen(false)
   }
 
   const links = [
-    { name: 'Upload Database', path: '/upload', icon: UploadIcon },
     { name: 'Architecture', path: '/architecture', icon: GitBranch },
     { name: 'Security', path: '/security', icon: Shield }
   ]
@@ -61,7 +65,7 @@ export default function Navbar() {
             })}
           </div>
 
-          <h2>Version 1.6.1 :- LangGraph </h2>
+          <h2>Version 1.6.2 :- LangGraph </h2>
 
           <div className="hidden lg:flex items-center gap-3">
             {hasDb ? (

@@ -532,15 +532,15 @@ export function loadAnalysis() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (!stored) {
-      return createDemoAnalysis('E-Commerce Dataset')
+      return { ...EMPTY_ANALYSIS }
     }
     const parsed = JSON.parse(stored)
-    if (!parsed || !parsed.datasetKey) {
-      return createDemoAnalysis('E-Commerce Dataset')
+    if (!parsed) {
+      return { ...EMPTY_ANALYSIS }
     }
     return { ...EMPTY_ANALYSIS, ...parsed }
   } catch {
-    return createDemoAnalysis('E-Commerce Dataset')
+    return { ...EMPTY_ANALYSIS }
   }
 }
 
