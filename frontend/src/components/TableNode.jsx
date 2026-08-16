@@ -29,13 +29,13 @@ export default function TableNode({ data, selected }) {
             <div key={index} className="flex items-center justify-between py-1 px-2 rounded hover:bg-white/5 transition-colors group">
               <div className="flex items-center gap-2">
                 {c.pk ? (
-                  <Key className="w-3 h-3 text-yellow-500" title="Primary Key" />
+                  <Key className="w-3 h-3 text-[rgb(var(--color-yellow-500))]" title="Primary Key" />
                 ) : c.fk ? (
                   <Link2 className="w-3 h-3 text-primary" title="Foreign Key" />
                 ) : (
                   <div className="w-3 h-3" /> /* Spacer */
                 )}
-                <span className={`text-xs font-mono ${c.pk ? 'text-yellow-100 font-bold' : c.fk ? 'text-primary-100' : 'text-gray-300'}`}>
+                <span className={`text-xs font-mono ${c.pk ? 'text-[rgb(var(--color-yellow-100))] font-bold' : c.fk ? 'text-primary-100' : 'text-gray-300'}`}>
                   {c.name}
                 </span>
               </div>

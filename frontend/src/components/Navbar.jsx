@@ -22,10 +22,10 @@ export default function Navbar() {
     }
   }, [])
 
-  const toggleTheme = (e) => {
-    // Record click position for the transition origin
-    const x = e?.clientX ?? window.innerWidth * 0.85
-    const y = e?.clientY ?? window.innerHeight * 0.05
+  const toggleTheme = () => {
+    // Generate a completely random position for the transition origin
+    const x = Math.random() * window.innerWidth
+    const y = Math.random() * window.innerHeight
     document.documentElement.style.setProperty('--click-x', `${x}px`)
     document.documentElement.style.setProperty('--click-y', `${y}px`)
 
@@ -82,7 +82,7 @@ export default function Navbar() {
           </Link>
           <div className="hidden sm:flex items-center">
             <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[10px] font-semibold text-gray-400 tracking-wide uppercase">
-              v1.7.2 Cream UI
+              v1.7.3 Cream UI
             </span>
           </div>
         </div>

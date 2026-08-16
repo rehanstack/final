@@ -274,13 +274,13 @@ export default function SchemaExplorer() {
                           return (
                             <div key={i} className="px-3 py-2 hover:bg-white/5 flex items-center justify-between gap-2">
                               <div className="flex items-center gap-1.5 min-w-0">
-                                {c.pk && <span className="text-yellow-400 text-[10px] flex-shrink-0">🔑</span>}
+                                {c.pk && <span className="text-[rgb(var(--color-yellow-400))] text-[10px] flex-shrink-0">🔑</span>}
                                 {c.fk && <span className="text-primary text-[10px] flex-shrink-0">🔗</span>}
                                 {!c.pk && !c.fk && <span className="w-3 flex-shrink-0" />}
-                                <span className={`font-mono text-xs truncate ${c.pk ? 'text-yellow-200 font-bold' : c.fk ? 'text-primary' : 'text-gray-200'}`}>{c.name}</span>
+                                <span className={`font-mono text-xs truncate ${c.pk ? 'text-[rgb(var(--color-yellow-200))] font-bold' : c.fk ? 'text-primary' : 'text-gray-200'}`}>{c.name}</span>
                               </div>
                               <div className="flex items-center gap-1 flex-shrink-0">
-                                {c.pk && <span className="px-1 py-0.5 rounded bg-yellow-500/20 text-yellow-300 text-[9px] font-mono">PK</span>}
+                                {c.pk && <span className="px-1 py-0.5 rounded bg-[rgb(var(--color-yellow-500)/0.2)] text-[rgb(var(--color-yellow-300))] text-[9px] font-mono">PK</span>}
                                 {c.fk && <span className="px-1 py-0.5 rounded bg-primary/20 text-primary text-[9px] font-mono">FK</span>}
                                 <span className="text-[10px] text-gray-500 font-mono">{c.type?.split('(')[0] || ''}</span>
                               </div>
@@ -433,7 +433,7 @@ export default function SchemaExplorer() {
                                       <td className="p-3 text-secondary">{c.type || "-"}</td>
                                       <td className="p-3">
                                         <div className="flex flex-wrap gap-1">
-                                          {c.pk && <span className="px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-300 text-[9px]">PK</span>}
+                                          {c.pk && <span className="px-1.5 py-0.5 rounded bg-[rgb(var(--color-yellow-500)/0.2)] text-[rgb(var(--color-yellow-300))] text-[9px]">PK</span>}
                                           {c.fk && <span className="px-1.5 py-0.5 rounded bg-primary/20 text-primary text-[9px]">FK{c.references ? ": " + c.references : ""}</span>}
                                           {c.unique && <span className="px-1.5 py-0.5 rounded bg-green-500/20 text-green-300 text-[9px]">UNIQUE</span>}
                                         </div>
