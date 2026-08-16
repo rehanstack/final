@@ -43,7 +43,7 @@ export default function Landing() {
         
         <motion.h1 
           variants={titleVariants} 
-          className="text-6xl md:text-8xl lg:text-9xl font-black mb-10 text-transparent bg-clip-text bg-gradient-to-b from-red-500 via-red-800 to-black leading-tight tracking-tighter"
+          className="text-6xl md:text-8xl lg:text-9xl font-black mb-10 text-transparent bg-clip-text bg-gradient-to-b from-red-500 via-red-800 to-black leading-tight tracking-tighter animate-float-slow glow-text"
         >
           DBSense AI
         </motion.h1>

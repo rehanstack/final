@@ -71,8 +71,8 @@ export default function Navbar() {
   ]
 
   return (
-    <div className="absolute top-0 w-full z-50 px-4 pt-4 pb-2">
-      <nav className="max-w-5xl mx-auto glass-dark border border-white/10 rounded-full px-4 sm:px-6 h-14 flex items-center justify-between backdrop-blur-xl bg-dark-950/80 shadow-card">
+    <div className="absolute top-0 w-full z-50 px-4 pt-4 pb-2 animate-float-slow">
+      <nav className="max-w-5xl mx-auto glass-dark border border-white/10 rounded-full px-4 sm:px-6 h-14 flex items-center justify-between backdrop-blur-xl bg-dark-950/80 animate-glow-continuous">
         
         {/* Logo and Version */}
         <div className="flex items-center gap-4">
@@ -82,7 +82,7 @@ export default function Navbar() {
           </Link>
           <div className="hidden sm:flex items-center">
             <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[10px] font-semibold text-gray-400 tracking-wide uppercase">
-              v1.7.3 Cream UI
+              v1.7.4 Cream UI
             </span>
           </div>
         </div>
