@@ -417,8 +417,8 @@ export default function DataExplorer() {
 
 
 
-        {/* Summary Bar */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        {/* Table Metrics */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <div className="glass-dark p-5 rounded-2xl border border-white/10">
             <div className="flex items-center gap-3">
               <div className="p-2.5 bg-primary/20 text-primary rounded-xl"><FileSpreadsheet className="w-4 h-4" /></div>

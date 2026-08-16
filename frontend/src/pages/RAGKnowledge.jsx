@@ -195,7 +195,7 @@ export default function RAGKnowledge() {
   }
 
   return (
-    <div className="p-4 sm:p-8 pb-20 max-w-[1600px] mx-auto w-full h-[calc(100vh-80px)] flex flex-col relative">
+    <div className="p-4 sm:p-8 pb-20 max-w-[1600px] mx-auto w-full min-h-[calc(100vh-80px)] lg:h-[calc(100vh-80px)] flex flex-col relative">
       {/* Ambient background glow */}
       <div className="absolute top-20 -left-10 w-96 h-96 bg-primary/20 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-10 -right-10 w-96 h-96 bg-secondary/20 rounded-full blur-[120px] pointer-events-none" />

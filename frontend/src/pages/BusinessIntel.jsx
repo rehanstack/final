@@ -454,7 +454,7 @@ export default function BusinessIntel() {
         </motion.div>
 
         {/* KPI Cards */}
-        <motion.div variants={itemVariants} className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {kpisToShow.map((kpi, idx) => {
             const Icon = kpi.icon || Activity
             const clr = { primary: { bg: 'bg-primary/15', text: 'text-primary', border: 'border-primary/25' }, secondary: { bg: 'bg-secondary/15', text: 'text-secondary', border: 'border-secondary/25' }, accent: { bg: 'bg-accent/15', text: 'text-accent', border: 'border-accent/25' } }
@@ -507,9 +507,9 @@ export default function BusinessIntel() {
           </motion.div>
         )}
 
-        {/* Charts Grid */}
+        {/* Dashboard Charts */}
         {chartsToRender.length > 0 ? (
-          <motion.div variants={itemVariants} className="grid lg:grid-cols-2 gap-6">
+          <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {chartsToRender.map((chart, idx) => (
               <motion.div key={chart.id || idx} variants={itemVariants}
                 className={`glass-dark p-6 rounded-2xl border transition-all ${

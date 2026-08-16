@@ -342,8 +342,8 @@ export default function UploadPage() {
               <p className="text-gray-400 mb-6">Supports SQL Dumps (.sql), SQLite (.db), JSON Schemas, or CSV Exports</p>
 
               {uploadedFile ? (
-                <div className="bg-dark-800/80 border border-primary/40 rounded-xl p-4 max-w-md mx-auto mb-6 flex items-center justify-between">
-                  <div className="flex items-center gap-3 text-left">
+                <div className="bg-dark-800/80 border border-primary/40 rounded-xl p-4 max-w-md mx-auto mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 text-left overflow-hidden">
                     <FileJson className="w-8 h-8 text-primary" />
                     <div>
                       <p className="font-semibold text-white truncate max-w-[200px]">{uploadedFile.name}</p>

@@ -195,8 +195,8 @@ export default function QualityMetrics() {
           )}
         </AnimatePresence>
 
-        {/* Top Summary Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {/* Top KPIs */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div className="glass-dark p-6 rounded-2xl border border-accent/30">
             <div className="flex items-center gap-3 mb-2">
               <div className="p-3 bg-accent/20 text-accent rounded-xl">
@@ -287,7 +287,7 @@ export default function QualityMetrics() {
         {/* SECTION 1 (DEFAULT): DETAILED VISUAL QUALITY CHARTS */}
         {activeSection === 'charts' && (
           <div className="space-y-8">
-            <div className="grid lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Chart 1: Column Completeness Score Bar Chart */}
               <div className="glass-dark p-6 rounded-2xl border border-white/10">
                 <div className="flex items-center justify-between mb-4">

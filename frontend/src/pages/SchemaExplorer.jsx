@@ -167,7 +167,7 @@ export default function SchemaExplorer() {
           isFullScreen ? 'fixed inset-0 z-50 rounded-none bg-dark-950 shadow-2xl' : 'rounded-2xl mb-6 h-[600px] p-6'
         }`}>
           {/* Toolbar */}
-          <div className={`flex items-center justify-between border-b border-white/10 pb-4 mb-4 ${isFullScreen ? 'px-6 pt-5' : ''}`}>
+          <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4 mb-4 ${isFullScreen ? 'px-4 md:px-6 pt-5' : ''}`}>
             <div>
               <h2 className="text-xl font-bold flex items-center gap-2">
                 <Link2 className="w-5 h-5 text-primary" />
@@ -189,7 +189,7 @@ export default function SchemaExplorer() {
           </div>
 
           {/* Diagram + optional side panel in fullscreen */}
-          <div className={`flex flex-1 min-h-0 gap-4 ${isFullScreen ? 'px-6 pb-6' : ''}`}>
+          <div className={`flex flex-col md:flex-row flex-1 min-h-0 gap-4 ${isFullScreen ? 'px-4 md:px-6 pb-6' : ''}`}>
             {/* ReactFlow canvas */}
             <div className="flex-1 rounded-xl overflow-hidden bg-dark-950 border border-white/5 relative">
               <ReactFlow
@@ -219,7 +219,7 @@ export default function SchemaExplorer() {
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 40 }}
                   transition={{ duration: 0.2 }}
-                  className="w-80 flex-shrink-0 bg-dark-900 border border-white/10 rounded-xl flex flex-col overflow-hidden"
+                  className="w-full md:w-80 flex-shrink-0 bg-dark-900 border border-white/10 rounded-xl flex flex-col overflow-hidden"
                 >
                   {/* Panel header */}
                   <div className="p-4 border-b border-white/10 bg-primary/10">

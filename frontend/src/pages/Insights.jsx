@@ -442,7 +442,7 @@ export default function Insights() {
         </div>
 
         {/* ── Summary cards ────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
           {[
             { label: 'Total Problems', value: allCellProblems.length, icon: BarChart3, iconColor: 'text-primary', border: 'border-primary/30', bg: 'bg-primary/10' },
             { label: 'Missing Cells', value: missingCount, icon: XCircle, iconColor: 'text-red-400', border: 'border-red-500/30', bg: 'bg-red-500/10' },
