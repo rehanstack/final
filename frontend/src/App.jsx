@@ -21,7 +21,7 @@ export default function App() {
   return (
     <ServerStatusProvider>
       <Router>
-        <div className="min-h-screen bg-dark-950 gradient-animation">
+        <div className="min-h-screen bg-dark-950">
           <Navbar />
           <DebugMenu />
           <AnimatePresence mode="wait">
