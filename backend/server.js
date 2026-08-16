@@ -7,7 +7,7 @@ import Groq from 'groq-sdk'
 import axios from 'axios'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { testDatabaseConnection, extractDatabaseSchema } from './lib/dbConnector.js'
+import { testDatabaseConnection, extractDatabaseSchema, executeDynamicQuery } from './lib/dbConnector.js'
 import { parseSqlDump } from './lib/sqlParser.js'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -724,8 +724,14 @@ app.post('/api/rag-query', async (req, res) => {
       throw new Error("GROQ_API_KEY is missing")
     }
     
-    const { query, chatHistory, schemaContext } = req.body
+    const { query, chatHistory, schemaContext, dbConfig } = req.body
     
+    let dialect = 'SQLite'
+    if (dbConfig && dbConfig.dbType) {
+      if (dbConfig.dbType.toLowerCase().includes('postgres') || dbConfig.dbType.toLowerCase().includes('pg')) dialect = 'PostgreSQL'
+      else if (dbConfig.dbType.toLowerCase().includes('mysql') || dbConfig.dbType.toLowerCase().includes('mariadb')) dialect = 'MySQL'
+    }
+
     let schemaStr = "No schema provided."
     if (schemaContext && schemaContext.tables && schemaContext.tables.length > 0) {
       // Extract SCHEMA chunks to provide table context
@@ -745,17 +751,17 @@ app.post('/api/rag-query', async (req, res) => {
       chatContextStr = chatHistory.slice(-3).map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)}`).join('\n');
     }
 
-    let currentSqlPrompt = `You are a SQLite database expert. Given the following database schema:
+    let currentSqlPrompt = `You are a ${dialect} database expert. Given the following database schema:
 ${schemaStr}
 
-Write a valid SQLite query to answer the user's question. 
+Write a valid ${dialect} query to answer the user's question. 
 Rules:
 - Return ONLY the raw SQL query string.
 - If the user's input is a general greeting (like "hi", "hello") or a question that absolutely does NOT require querying the database, return EXACTLY the string "NO_SQL".
 - Do NOT wrap it in markdown code blocks (\`\`\`sql ... \`\`\`).
 - Do NOT provide any explanations.
 - Ensure the table and column names exactly match the schema.
-- IMPORTANT: Always use \`LIKE '%keyword%'\` instead of strict equality (\`=\`) for text/string comparisons to handle case insensitivity and partial matches (e.g., \`movie_title LIKE '%Long Road Home%'\`).
+- IMPORTANT: Always use \`LIKE '%keyword%'\` (or ILIKE if PostgreSQL) instead of strict equality (\`=\`) for text/string comparisons to handle case insensitivity and partial matches.
 
 Recent Chat History for Context:
 ${chatContextStr}
@@ -786,9 +792,20 @@ User Question: ${query}`;
 
         // Step 2: Autonomous Execution
         executionError = null;
-        if (sqlQuery && sqlQuery.toLowerCase().startsWith('select')) {
+        
+        // Strictly reject any destructive statements
+        const destructiveKeywords = ['insert', 'update', 'delete', 'drop', 'alter', 'truncate', 'grant', 'revoke'];
+        const isDestructive = destructiveKeywords.some(keyword => new RegExp(`\\b${keyword}\\b`, 'i').test(sqlQuery));
+
+        if (isDestructive) {
+          executionError = "Query contains destructive or unauthorized operations and was blocked.";
+        } else if (sqlQuery && sqlQuery.toLowerCase().startsWith('select')) {
           try {
-            dbResult = await dbAll(sqlQuery);
+            if (dbConfig && dbConfig.dbType) {
+              dbResult = await executeDynamicQuery(dbConfig, sqlQuery);
+            } else {
+              dbResult = await dbAll(sqlQuery);
+            }
             break; // Success! Exit the retry loop.
           } catch (e) {
              executionError = e.message;
@@ -800,23 +817,23 @@ User Question: ${query}`;
         // If execution failed, prepare prompt for the next retry
         retries++;
         if (retries <= maxRetries) {
-           currentSqlPrompt = `You are a SQLite database expert. Given the following database schema:
+           currentSqlPrompt = `You are a ${dialect} database expert. Given the following database schema:
 ${schemaStr}
 
 You previously generated this query:
 ${sqlQuery}
 
-However, it resulted in this error when executed in SQLite:
+However, it resulted in this error when executed in ${dialect}:
 ${executionError}
 
-Please fix the SQL query and write a valid SQLite query to answer the user's question. 
+Please fix the SQL query and write a valid ${dialect} query to answer the user's question. 
 Rules:
 - Return ONLY the raw SQL query string.
 - If the user's input is a general greeting (like "hi", "hello") or a question that absolutely does NOT require querying the database, return EXACTLY the string "NO_SQL".
 - Do NOT wrap it in markdown code blocks (\`\`\`sql ... \`\`\`).
 - Do NOT provide any explanations.
 - Ensure the table and column names exactly match the schema.
-- IMPORTANT: Always use \`LIKE '%keyword%'\` instead of strict equality (\`=\`) for text/string comparisons to handle case insensitivity and partial matches.
+- IMPORTANT: Always use \`LIKE '%keyword%'\` (or ILIKE if PostgreSQL) instead of strict equality (\`=\`) for text/string comparisons to handle case insensitivity and partial matches.
 
 Recent Chat History for Context:
 ${chatContextStr}

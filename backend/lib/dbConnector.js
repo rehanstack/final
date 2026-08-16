@@ -105,6 +105,34 @@ export async function extractDatabaseSchema(config) {
   }
 }
 
+/**
+ * Execute dynamic SQL query on external database
+ * @param {Object} config - Connection config
+ * @param {string} sql - SQL query to execute
+ * @returns {Promise<Array>} Query results
+ */
+export async function executeDynamicQuery(config, sql) {
+  const { dbType, host, dbName, username, password, filename } = config
+  const clientType = normalizeClientType(dbType)
+
+  const knexConfig = buildKnexConfig(clientType, { host, dbName, username, password, filename })
+  const db = knex(knexConfig)
+
+  try {
+    const res = await db.raw(sql)
+    // pg returns an object with a .rows array, mysql2 returns an array [rows, fields], sqlite3 returns an array
+    if (clientType === 'pg') {
+      return res.rows || []
+    } else if (clientType === 'mysql2') {
+      return res[0] || []
+    } else {
+      return res || []
+    }
+  } finally {
+    try { await db.destroy() } catch {}
+  }
+}
+
 function normalizeClientType(dbType = '') {
   const lower = dbType.toLowerCase()
   if (lower.includes('postgres') || lower.includes('pg')) return 'pg'
@@ -132,7 +160,8 @@ function buildKnexConfig(clientType, { host, dbName, username, password, filenam
       return {
         client: clientType,
         connection: hostName,
-        pool: { min: 1, max: 3 }
+        pool: { min: 1, max: 3, acquireTimeoutMillis: 5000 },
+        acquireConnectionTimeout: 5000
       }
     } catch {}
   }
@@ -150,9 +179,11 @@ function buildKnexConfig(clientType, { host, dbName, username, password, filenam
       port,
       user: username,
       password: password || '',
-      database: dbName
+      database: dbName,
+      connectTimeout: 5000
     },
-    pool: { min: 1, max: 3 }
+    pool: { min: 1, max: 3, acquireTimeoutMillis: 5000 },
+    acquireConnectionTimeout: 5000
   }
 }
 
