@@ -16,6 +16,7 @@ export default function UploadPage() {
   const [connSuccess, setConnSuccess] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [uploadError, setUploadError] = useState(null)
+  const [isAnalysisReady, setIsAnalysisReady] = useState(false)
   
   // Direct DB Connection Form State
   const [dbConfig, setDbConfig] = useState({
@@ -60,7 +61,7 @@ export default function UploadPage() {
 
   const startAnalysis = (datasetKey, customDetails = null) => {
     saveAnalysis(createAnalysisForDataset(datasetKey, customDetails))
-    navigate('/processing')
+    setIsAnalysisReady(true)
   }
 
   const handleCustomFileUploadStart = async () => {
@@ -86,8 +87,10 @@ export default function UploadPage() {
       }
 
       if (response && response.data?.success) {
+        // Trigger AI analysis asynchronously and redirect to Processing
         startAnalysis(response.data.datasetKey, response.data.customDetails)
         setIsUploading(false)
+        navigate('/processing')
         return
       }
 
@@ -159,6 +162,7 @@ export default function UploadPage() {
         if (response.data?.success) {
           startAnalysis(response.data.datasetKey, response.data.customDetails)
           serverSuccess = true
+          navigate('/processing')
         }
       } catch (err) {
         console.warn('SQL server upload failed, using client-side parser:', err)
@@ -193,6 +197,7 @@ export default function UploadPage() {
         }
 
         startAnalysis('SQL Dump', customDetails)
+        navigate('/processing')
       } catch (clientErr) {
         console.error('Client-side SQL parse error:', clientErr)
         setUploadError('Failed to parse SQL file. Please ensure it is a valid SQL dump with CREATE TABLE statements.')
@@ -207,6 +212,7 @@ export default function UploadPage() {
         size: (uploadedFile.size / (1024 * 1024)).toFixed(1) + ' MB'
       }
       startAnalysis('E-Commerce Dataset', customDetails)
+      navigate('/processing')
     }
   }
 
@@ -238,6 +244,7 @@ export default function UploadPage() {
       const response = await apiPost('/api/connect-db', dbConfig)
       if (response.data?.success) {
         startAnalysis(response.data.datasetKey, response.data.customDetails)
+        navigate('/processing')
       } else {
         setUploadError(response.data?.error || 'Failed to connect to database.')
       }
@@ -350,12 +357,14 @@ export default function UploadPage() {
                     </div>
                   )}
                   <button
-                    onClick={handleCustomFileUploadStart}
-                    disabled={isUploading || !isOnline}
+                    onClick={isAnalysisReady ? () => navigate('/dashboard') : handleCustomFileUploadStart}
+                    disabled={isUploading || (!isOnline && !isAnalysisReady)}
                     className="button-primary py-2 px-4 text-sm disabled:opacity-50"
                   >
                     {isUploading ? (
-                      <><Loader2 className="w-4 h-4 animate-spin" /> Processing Backend...</>
+                      <><Loader2 className="w-4 h-4 animate-spin" /> Processing AI Analysis...</>
+                    ) : isAnalysisReady ? (
+                      <><ArrowRight className="w-4 h-4" /> Go to Dashboard</>
                     ) : !isOnline ? (
                       'Servers Waking Up...'
                     ) : (

@@ -81,6 +81,7 @@ class SchemaAgent:
                 "constraints": [],
                 "indexes": [],
                 "source": self.database_connection.get("name", "Real Database"),
+                "connection_string": conn_string
             }
         except Exception as e:
             # Fallback to sample if connection fails

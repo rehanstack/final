@@ -37,6 +37,7 @@ class VisualizationAgent:
     def create_quality_chart(self, quality_metrics):
         """Create data quality visualization."""
         return {
+            "id": "chart_quality_bar",
             "type": "bar",
             "title": "Data Quality by Table",
             "data": [
@@ -48,6 +49,7 @@ class VisualizationAgent:
     def create_relationship_diagram(self, relationships):
         """Create entity relationship diagram."""
         return {
+            "id": "chart_rel_diagram",
             "type": "graph",
             "title": "Entity Relationships",
             "nodes": sorted({item["from_table"] for item in relationships} | {item["to_table"] for item in relationships}),
@@ -57,6 +59,7 @@ class VisualizationAgent:
     def create_anomaly_visualizations(self, anomalies):
         """Create visualizations for detected anomalies."""
         return {
+            "id": "chart_anomalies_list",
             "type": "list",
             "title": "Detected Anomalies",
             "data": anomalies,

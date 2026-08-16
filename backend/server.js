@@ -391,7 +391,7 @@ app.post('/api/connect-db', async (req, res) => {
       columnsCount: pySchema.column_count || 0,
       relationshipsCount: relationships.length,
       totalRecords: tablesArray.reduce((acc, t) => acc + (t.row_count || 0), 0),
-      qualityScore: pyData.quality?.score || 92,
+      qualityScore: pyData.quality?.overall_score || 92,
       anomaliesCount: (pyData.quality?.anomalies || []).length,
       tables: tablesArray.map(t => ({
         ...t,
@@ -399,7 +399,9 @@ app.post('/api/connect-db', async (req, res) => {
         columns: t.columns || []
       })),
       relationships: relationships,
-      ragChunks: pyData.rag?.index || []
+      ragChunks: pyData.rag?.index || [],
+      insights: pyData.insights || null,
+      dynamicCharts: pyData.visualizations?.charts || null
     }
 
     return res.json({
@@ -410,6 +412,81 @@ app.post('/api/connect-db', async (req, res) => {
   } catch (err) {
     console.error('Database analysis error:', err)
     return res.status(500).json({ error: err.response?.data?.detail || err.message || 'Failed to extract schema from database via AI Layer' })
+  }
+})
+
+// Analyze existing dbsense.db Endpoint (used after CSV/SQL upload)
+app.post('/api/analyze', async (req, res) => {
+  try {
+    const aiLayerUrl = process.env.AI_LAYER_URL || 'http://127.0.0.1:8000'
+    const response = await axios.post(`${aiLayerUrl}/api/analyze`, req.body)
+    
+    const pyData = response.data?.results || {}
+    const pySchema = pyData.schema || {}
+    const tablesArray = Object.values(pySchema.tables || {})
+    const relationships = pyData.relationships || []
+    
+    const customDetails = {
+      name: `${req.body.filename || 'Uploaded Database'}`,
+      tablesCount: pySchema.table_count || tablesArray.length,
+      columnsCount: pySchema.column_count || 0,
+      relationshipsCount: relationships.length,
+      totalRecords: tablesArray.reduce((acc, t) => acc + (t.row_count || 0), 0),
+      qualityScore: pyData.quality?.overall_score || 92,
+      anomaliesCount: (pyData.quality?.anomalies || []).length,
+      tables: tablesArray.map(t => ({
+        ...t,
+        records: t.row_count || 0,
+        columns: t.columns || []
+      })),
+      relationships: relationships,
+      ragChunks: pyData.rag?.index || [],
+      insights: pyData.insights || null,
+      dynamicCharts: pyData.visualizations?.charts || null
+    }
+
+    return res.json({
+      success: true,
+      datasetKey: 'Custom Database',
+      customDetails,
+      agentTimes: response.data?.agent_times || {}
+    })
+  } catch (err) {
+    console.error('AI Analysis error:', err)
+    return res.status(500).json({ error: err.response?.data?.detail || err.message || 'Failed to run AI analysis' })
+  }
+})
+
+// SSE Streaming endpoint for dynamic real-time progress
+app.post('/api/analyze-stream', async (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream')
+  res.setHeader('Cache-Control', 'no-cache')
+  res.setHeader('Connection', 'keep-alive')
+  res.flushHeaders(); // Establish the SSE connection immediately
+
+  try {
+    const aiLayerUrl = process.env.AI_LAYER_URL || 'http://127.0.0.1:8000'
+    const response = await axios.post(`${aiLayerUrl}/api/analyze-stream`, req.body, {
+      responseType: 'stream',
+      timeout: 300000 // 5 minutes timeout for the stream
+    })
+
+    // Listen to the data events and write explicitly to ensure flushing
+    response.data.on('data', chunk => {
+      res.write(chunk);
+      if (res.flush) res.flush();
+    });
+
+    response.data.on('end', () => res.end());
+    
+    response.data.on('error', err => {
+      console.error("AI layer stream transmission error:", err.message);
+      res.end();
+    });
+  } catch (err) {
+    console.error("AI layer stream error:", err.message)
+    res.write(`data: ${JSON.stringify({ type: 'error', error: "Failed to run AI streaming analysis" })}\n\n`)
+    res.end()
   }
 })
 

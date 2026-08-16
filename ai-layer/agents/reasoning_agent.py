@@ -2,35 +2,29 @@
 Reasoning Agent for DBSense AI
 Responsible for generating insights and reasoning about the data.
 """
+import os
+import json
+from langchain_groq import ChatGroq
+from langchain_core.messages import SystemMessage, HumanMessage
 
 class ReasoningAgent:
     """
-    Generates prototype conclusions, recommendations, and predictions.
-    Phase 2 can replace the mock reasoning with LangChain and Gemini.
+    Generates dynamic conclusions, recommendations, and predictions using ChatGroq.
     """
     
     def __init__(self, llm_model=None, rag_agent=None):
-        """
-        Initialize the reasoning agent.
-        
-        Args:
-            llm_model: Optional mock or future LLM for reasoning
-            rag_agent: RAG agent for context retrieval
-        """
-        self.llm_model = llm_model
         self.rag_agent = rag_agent
         self.insights = []
+        self.recommendations = []
+        self.business_implications = []
         
-    def analyze_data_patterns(self, data_stats):
-        """
-        Analyze patterns in the data.
-        
-        Args:
-            data_stats: Statistical information about the data
+        api_key = os.environ.get("GROQ_API_KEY")
+        if api_key:
+            self.llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=api_key, temperature=0.3)
+        else:
+            self.llm = None
             
-        Returns:
-            list: Identified patterns with explanations
-        """
+    def analyze_data_patterns(self, data_stats):
         patterns = []
         quality = data_stats.get("quality", {})
         if quality.get("overall_score", 100) < 95:
@@ -50,7 +44,6 @@ class ReasoningAgent:
         return patterns
     
     def generate_anomaly_insights(self, anomalies):
-        """Generate insights about detected anomalies."""
         return [
             {
                 "title": f"Outlier pattern in {item['table']}.{item['column']}",
@@ -60,48 +53,54 @@ class ReasoningAgent:
             }
             for item in anomalies
         ]
-    
-    def reason_with_context(self, question, context):
-        """
-        Use LLM to reason about a question with retrieved context.
         
-        Args:
-            question: Question about the database
-            context: Retrieved context from RAG
+    def _generate_dynamic_content(self, data_stats):
+        if not self.llm:
+            return
             
-        Returns:
-            str: Reasoning output with grounding
-        """
-        if self.llm_model and hasattr(self.llm_model, "generate"):
-            return self.llm_model.generate(question=question, context=context)
-        joined_context = " ".join(item.get("content", "") for item in context)
-        return (
-            f"Based on retrieved database context, {question.strip()} "
-            f"The strongest supporting evidence is: {joined_context[:240]}"
-        )
-    
-    def generate_recommendations(self):
-        """Generate actionable recommendations based on analysis."""
-        return [
-            "Review high-value order outliers before financial reporting.",
-            "Run customer deduplication on email and phone fields.",
-            "Add monitoring for nullable status values in orders.",
-        ]
-    
-    def identify_business_implications(self):
-        """Identify business implications of discovered patterns."""
-        return [
-            "Cleaner customer records improve retention and segmentation.",
-            "Relationship metadata enables more reliable revenue attribution.",
-            "Earlier anomaly detection reduces manual audit effort.",
-        ]
-    
-    def generate_comprehensive_report(self):
-        """Generate comprehensive insights report."""
+        try:
+            anomalies_str = json.dumps(data_stats.get("quality", {}).get("anomalies", [])[:5])
+            rel_count = data_stats.get("relationships", {}).get("relationship_count", 0)
+            score = data_stats.get("quality", {}).get("overall_score", 100)
+            
+            prompt = f"""You are an expert Data Analyst and Business Intelligence advisor.
+            Analyze these database metrics and return a JSON payload with actionable recommendations and business implications.
+            
+            Context:
+            - Quality Score: {score}
+            - Relationships Discovered: {rel_count}
+            - Top Anomalies/Outliers: {anomalies_str}
+            
+            Output strictly valid JSON:
+            {{
+               "recommendations": ["Action 1", "Action 2", "Action 3"],
+               "business_implications": ["Implication 1", "Implication 2", "Implication 3"]
+            }}
+            """
+            
+            msg = self.llm.invoke([HumanMessage(content=prompt)])
+            content = msg.content
+            if "```json" in content:
+                content = content.split("```json")[1].split("```")[0].strip()
+            elif "```" in content:
+                content = content.split("```")[1].strip()
+                
+            parsed = json.loads(content)
+            self.recommendations = parsed.get("recommendations", [])
+            self.business_implications = parsed.get("business_implications", [])
+        except Exception as e:
+            print("Failed to generate dynamic insights:", e)
+            self.recommendations = ["Review identified outliers to ensure data integrity."]
+            self.business_implications = ["Improving data quality score will yield more accurate analytics."]
+
+    def generate_comprehensive_report(self, data_stats=None):
+        if data_stats:
+            self._generate_dynamic_content(data_stats)
+            
         return {
             "insights": self.insights,
-            "recommendations": self.generate_recommendations(),
-            "business_implications": self.identify_business_implications(),
+            "recommendations": self.recommendations or ["Review high-value outliers.", "Run deduplication."],
+            "business_implications": self.business_implications or ["Cleaner records improve retention."],
             "summary": {
                 "total_insights": len(self.insights),
                 "critical": sum(1 for item in self.insights if item.get("severity") == "high"),

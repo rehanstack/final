@@ -43,6 +43,21 @@ def analyze_database(config: ConnectionConfig):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+from fastapi.responses import StreamingResponse
+import json
+
+@app.post("/api/analyze-stream")
+def analyze_database_stream(config: ConnectionConfig):
+    async def event_generator():
+        agent = MasterAgent()
+        try:
+            for event in agent.stream_workflow(config.dict()):
+                yield f"data: {json.dumps(event)}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+            
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
 @app.post("/api/rag-query")
 def rag_query(request: QueryRequest):
     import os

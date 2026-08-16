@@ -10,3 +10,5 @@ langchain-chroma
 chromadb
 pydantic
 python-dotenv
+langgraph
+pandas
