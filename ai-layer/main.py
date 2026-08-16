@@ -30,7 +30,7 @@ class ChatRequest(BaseModel):
 def health_check():
     return {"status": "ok", "service": "AI Layer"}
 
-@app.get("/ping")
+@app.api_route("/ping", methods=["GET", "HEAD"])
 def ping():
     return "pong"
 
