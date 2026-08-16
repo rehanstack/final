@@ -61,11 +61,29 @@ export default function Processing() {
     setAnalysis(fresh)
   }
 
+  // Smooth Progress Timer
+  useEffect(() => {
+    if (!analysis.hasAnalysis || analysis.status !== 'processing' || isPaused) return undefined
+
+    const interval = setInterval(() => {
+      updateAnalysis((current) => {
+        if (!current.hasAnalysis || current.status !== 'processing') return current
+        const nextProgress = Math.min(100, current.progress + Math.random() * 8 + 4)
+        return {
+          ...current,
+          progress: nextProgress,
+          updatedAt: new Date().toISOString()
+        }
+      })
+    }, 800)
+
+    return () => clearInterval(interval)
+  }, [analysis.hasAnalysis, analysis.status, isPaused])
+
   // Live Clock for currently running agent
   useEffect(() => {
     if (!analysis.hasAnalysis || analysis.status !== 'processing' || isPaused) return undefined
     
-    // We update a local counter every 100ms to visually show the current active agent's time
     const liveTimer = setInterval(() => {
       setLiveTime(prev => prev + 0.1);
     }, 100);
@@ -78,169 +96,97 @@ export default function Processing() {
     setLiveTime(0);
   }, [activeAgent]);
 
-  // Actual SSE Stream Call to LangGraph
+  // Step-by-Step Agent Progression UI (visual fake progress while waiting)
+  useEffect(() => {
+    if (!analysis.hasAnalysis || analysis.status !== 'processing' || isPaused) return undefined
+
+    if (activeAgent < AGENT_PIPELINE_STEPS.length) {
+      // Cinematic pacing for the hackathon demo: 1.5s to 3.5s per agent
+      const delays = [1500, 2200, 1800, 3100, 2500, 2800, 1900];
+      const currentDelay = delays[activeAgent] || 2000;
+
+      const timer = setTimeout(() => {
+        updateAnalysis((current) => {
+          if (!current.hasAnalysis || current.status !== 'processing') return current
+          
+          // Don't auto-complete the last agent until the API call finishes (only for custom data)
+          const isCustom = ['Custom CSV', 'Custom Database', 'SQL Dump'].includes(current.datasetKey);
+          if (isCustom && current.activeAgent === AGENT_PIPELINE_STEPS.length - 1 && !current.customData) {
+              return current;
+          }
+
+          const nextActiveAgent = current.activeAgent + 1
+          const nextCompleted = [...new Set([...current.completedAgents, current.activeAgent])]
+          const targetProgress = Math.round((nextActiveAgent / AGENT_PIPELINE_STEPS.length) * 100)
+
+          // If we just finished the last agent, mark it completed
+          if (nextActiveAgent >= AGENT_PIPELINE_STEPS.length) {
+            return {
+              ...current,
+              activeAgent: nextActiveAgent,
+              completedAgents: nextCompleted,
+              progress: 100,
+              status: 'completed',
+              updatedAt: new Date().toISOString()
+            }
+          }
+
+          return {
+            ...current,
+            activeAgent: nextActiveAgent,
+            completedAgents: nextCompleted,
+            progress: Math.max(current.progress, targetProgress),
+            updatedAt: new Date().toISOString()
+          }
+        })
+      }, currentDelay)
+      return () => clearTimeout(timer)
+    }
+    return undefined
+  }, [analysis.hasAnalysis, analysis.status, activeAgent, isPaused])
+
+  // Actual API Call to LangGraph (Runs in background while UI simulates)
   useEffect(() => {
     if (analysis.status === 'processing' && !isPaused && analysis.datasetKey) {
-      let isSubscribed = true;
-      const controller = new AbortController();
-
-      const runStreamingAnalysis = async () => {
+      const runAnalysis = async () => {
         // Skip backend analysis if it's a static demo dataset
         if (analysis.datasetKey !== 'Custom CSV' && analysis.datasetKey !== 'Custom Database' && analysis.datasetKey !== 'SQL Dump') {
-          // Fallback visual simulation for demo datasets
-          for (let i = 0; i < AGENT_PIPELINE_STEPS.length; i++) {
-            if (!isSubscribed) return;
-            await new Promise(resolve => setTimeout(resolve, 3500));
-            updateAnalysis(current => ({
-              ...current,
-              activeAgent: i + 1,
-              completedAgents: [...new Set([...current.completedAgents, i])],
-              progress: Math.round(((i + 1) / AGENT_PIPELINE_STEPS.length) * 100)
-            }));
-          }
-          if (isSubscribed) {
-            updateAnalysis(current => ({
-              ...current,
-              status: 'completed',
-              progress: 100,
-              agentTimes: { master: 0.1, schema: 1.2, relationship: 2.3, quality: 3.1, rag: 4.5, reasoning: 5.2, visualization: 1.1 }
-            }));
-          }
           return;
         }
 
         try {
-          const response = await fetch('/api/analyze-stream', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              dbType: 'sqlite', 
-              filename: '../backend/dbsense.db', 
-              host: 'localhost', 
-              dbName: 'dbsense.db', 
-              username: '', 
-              password: ''
-            }),
-            signal: controller.signal
+          const aiRes = await apiPost('/api/analyze', { 
+            dbType: 'sqlite', 
+            filename: '../backend/dbsense.db', 
+            host: 'localhost', 
+            dbName: 'dbsense.db', 
+            username: '', 
+            password: '' 
           });
-
-          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
           
-          const reader = response.body.getReader();
-          const decoder = new TextDecoder();
-          let buffer = '';
-
-          while (isSubscribed) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            
-            buffer += decoder.decode(value, { stream: true });
-            const events = buffer.split('\n\n');
-            buffer = events.pop() || '';
-
-            for (const event of events) {
-              if (event.startsWith('data: ')) {
-                let data;
-                try {
-                  data = JSON.parse(event.substring(6));
-                } catch (parseErr) {
-                  console.warn("Failed to parse SSE event:", parseErr);
-                  continue;
-                }
-                
-                if (data.type === 'error') {
-                  throw new Error(data.error);
-                } else if (data.type === 'progress') {
-                    const completedKeys = data.completed_agents || [];
-                    const agentKeys = ['master', 'schema', 'relationship', 'quality', 'rag', 'reasoning', 'visualization'];
-                    
-                    // Map Python keys to our pipeline index. Always include 0 (Master Agent) since it's just initialization.
-                    const completedIndexes = [0, ...completedKeys.map(k => agentKeys.indexOf(k)).filter(i => i !== -1)];
-                    // Active agent is max completed index + 1
-                    const newActive = Math.max(...completedIndexes) + 1;
-                    
-                    updateAnalysis(current => ({
-                      ...current,
-                      completedAgents: [...new Set([...current.completedAgents, ...completedIndexes])],
-                      activeAgent: Math.max(current.activeAgent, newActive),
-                      progress: Math.round((newActive / AGENT_PIPELINE_STEPS.length) * 100),
-                      agentTimes: { master: 0.1, ...(current.agentTimes || {}), ...(data.agent_times || {}) }
-                    }));
-                  } else if (data.type === 'complete') {
-                  const pyData = data.results?.results || {};
-                  const pySchema = pyData.schema || {};
-                  const tablesArray = Object.values(pySchema.tables || {});
-                  const relationships = pyData.relationships || [];
-                  
-                  const customDetails = {
-                    name: 'Uploaded Database',
-                    tablesCount: pySchema.table_count || tablesArray.length,
-                    columnsCount: pySchema.column_count || 0,
-                    relationshipsCount: relationships.length,
-                    totalRecords: tablesArray.reduce((acc, t) => acc + (t.row_count || 0), 0),
-                    qualityScore: pyData.quality?.overall_score || 92,
-                    anomaliesCount: (pyData.quality?.anomalies || []).length,
-                    tables: tablesArray.map(t => ({
-                      ...t,
-                      records: t.row_count || 0,
-                      columns: t.columns || []
-                    })),
-                    relationships: relationships,
-                    ragChunks: pyData.rag?.index || [],
-                    insights: pyData.insights || null,
-                    dynamicCharts: pyData.visualizations?.charts || null
-                  };
-
-                  updateAnalysis(current => {
-                    const completed = AGENT_PIPELINE_STEPS.map((_, i) => i);
-                    return {
-                      ...current,
-                      status: 'completed',
-                      progress: 100,
-                      activeAgent: AGENT_PIPELINE_STEPS.length,
-                      completedAgents: completed,
-                      customData: customDetails,
-                      agentTimes: { ...(current.agentTimes || {}), ...(data.results?.agent_times || {}) },
-                      metrics: {
-                        ...current.metrics,
-                        tables: customDetails.tablesCount || current.metrics.tables,
-                        relationships: customDetails.relationshipsCount || current.metrics.relationships,
-                        quality: customDetails.qualityScore || current.metrics.quality,
-                        anomalies: customDetails.anomaliesCount || current.metrics.anomalies
-                      }
-                    };
-                  });
-                }
-              }
-            }
-          }
-        } catch (err) {
-          if (err.name === 'AbortError') return;
-          console.error("AI Analysis failed. Falling back to default data for demo continuity:", err);
-          if (isSubscribed) {
-            updateAnalysis(current => {
-              const completed = AGENT_PIPELINE_STEPS.map((_, i) => i);
+          if (aiRes.data?.success && aiRes.data?.customDetails) {
+            updateAnalysis((current) => {
               return {
                 ...current,
-                status: 'completed',
-                progress: 100,
-                activeAgent: AGENT_PIPELINE_STEPS.length,
-                completedAgents: completed,
-                agentTimes: { master: 0.1, schema: 1.2, relationship: 2.3, quality: 3.1, rag: 4.5, reasoning: 5.2, visualization: 1.1 }
-              };
-            });
+                customData: aiRes.data.customDetails,
+                metrics: {
+                  ...current.metrics,
+                  tables: aiRes.data.customDetails.tablesCount || current.metrics.tables,
+                  relationships: aiRes.data.customDetails.relationshipsCount || current.metrics.relationships,
+                  quality: aiRes.data.customDetails.qualityScore || current.metrics.quality,
+                  anomalies: aiRes.data.customDetails.anomaliesCount || current.metrics.anomalies
+                }
+              }
+            })
           }
+        } catch (err) {
+          console.error("AI Analysis failed. Silently ignoring to let demo animation complete:", err);
         }
-      };
+      }
       
-      runStreamingAnalysis();
-
-      return () => {
-        isSubscribed = false;
-        controller.abort();
-      };
+      runAnalysis()
     }
-  }, [analysis.status, analysis.datasetKey, isPaused]);
+  }, [analysis.status, analysis.datasetKey, isPaused])
 
   const containerVariants = {
     hidden: { opacity: 0 },
