@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CheckCircle2, Zap, Brain, RefreshCw, GitBranch, Gauge, BarChart3, Eye, Trash2, ArrowRight, Play, Pause, Database, Layers, Upload } from 'lucide-react'
 import { clearAnalysis, completeAnalysis, loadAnalysis, saveAnalysis, AGENT_PIPELINE_STEPS } from '../lib/analysisState'
@@ -10,6 +10,7 @@ export default function Processing() {
   const [isPaused, setIsPaused] = useState(false)
   const [liveTime, setLiveTime] = useState(0)
   const navigate = useNavigate()
+  const agentRefs = useRef([])
 
   // Empty State if no database uploaded
   if (!analysis || !analysis.hasAnalysis) {
@@ -68,7 +69,14 @@ export default function Processing() {
     const interval = setInterval(() => {
       updateAnalysis((current) => {
         if (!current.hasAnalysis || current.status !== 'processing') return current
-        const nextProgress = Math.min(100, current.progress + Math.random() * 8 + 4)
+        
+        // Calculate the maximum progress allowed for the current active agent (e.g., if agent 2 of 7 is running, max is ~42%)
+        // We leave a 1% buffer so it doesn't overlap the next stage perfectly
+        const maxAllowedProgress = ((current.activeAgent + 0.95) / AGENT_PIPELINE_STEPS.length) * 100;
+        
+        // Increment slowly by 1-3% every 800ms, but never exceed maxAllowedProgress
+        const nextProgress = Math.min(maxAllowedProgress, current.progress + Math.random() * 2 + 1);
+        
         return {
           ...current,
           progress: nextProgress,
@@ -91,9 +99,15 @@ export default function Processing() {
     return () => clearInterval(liveTimer);
   }, [analysis.hasAnalysis, analysis.status, isPaused, activeAgent]);
 
-  // Reset live time when active agent changes
+  // Reset live time and auto-scroll when active agent changes
   useEffect(() => {
     setLiveTime(0);
+    if (agentRefs.current[activeAgent]) {
+      // Small timeout to allow render to settle
+      setTimeout(() => {
+        agentRefs.current[activeAgent]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+    }
   }, [activeAgent]);
 
   // Step-by-Step Agent Progression UI (visual fake progress while waiting)
@@ -239,33 +253,36 @@ export default function Processing() {
               </button>
             </div>
           </div>
+        </motion.div>
 
-          {/* Overall Progress Bar */}
-          <div className="glass-dark p-6 rounded-2xl border border-white/10 mb-8">
-            <div className="flex justify-between items-center text-sm font-semibold mb-3">
-              <span className="flex items-center gap-2">
-                {analysis.status === 'completed' ? (
-                  <CheckCircle2 className="w-5 h-5 text-green-400" />
-                ) : (
-                  <RefreshCw className="w-5 h-5 text-primary animate-spin" />
-                )}
-                <span>
-                  {analysis.status === 'completed'
-                    ? 'All 7 Agents Completed Successfully'
-                    : `Agent ${Math.min(activeAgent + 1, AGENT_PIPELINE_STEPS.length)} of ${AGENT_PIPELINE_STEPS.length}: ${AGENT_PIPELINE_STEPS[activeAgent]?.name || 'Processing'}`}
-                </span>
+        {/* Overall Progress Bar */}
+        <motion.div 
+          variants={itemVariants}
+          className="glass-dark p-6 rounded-2xl border border-white/10 mb-8 sticky top-[100px] z-40 backdrop-blur-xl shadow-2xl"
+        >
+          <div className="flex justify-between items-center text-sm font-semibold mb-3">
+            <span className="flex items-center gap-2">
+              {analysis.status === 'completed' ? (
+                <CheckCircle2 className="w-5 h-5 text-green-400" />
+              ) : (
+                <RefreshCw className="w-5 h-5 text-primary animate-spin" />
+              )}
+              <span>
+                {analysis.status === 'completed'
+                  ? 'All 7 Agents Completed Successfully'
+                  : `Agent ${Math.min(activeAgent + 1, AGENT_PIPELINE_STEPS.length)} of ${AGENT_PIPELINE_STEPS.length}: ${AGENT_PIPELINE_STEPS[activeAgent]?.name || 'Processing'}`}
               </span>
-              <span className="text-xl font-bold gradient-text">{Math.min(Math.round(progress), 100)}%</span>
-            </div>
+            </span>
+            <span className="text-xl font-bold gradient-text">{Math.min(Math.round(progress), 100)}%</span>
+          </div>
 
-            <div className="w-full bg-dark-800 rounded-full h-3 overflow-hidden border border-white/10">
-              <motion.div
-                className="h-full bg-gradient-to-r from-primary via-secondary to-accent"
-                initial={{ width: 0 }}
-                animate={{ width: `${Math.min(progress, 100)}%` }}
-                transition={{ duration: 0.5 }}
-              />
-            </div>
+          <div className="w-full bg-dark-800 rounded-full h-3 overflow-hidden border border-white/10">
+            <motion.div
+              className="h-full bg-gradient-to-r from-primary via-secondary to-accent"
+              initial={{ width: 0 }}
+              animate={{ width: `${Math.min(progress, 100)}%` }}
+              transition={{ duration: 0.5 }}
+            />
           </div>
         </motion.div>
 
@@ -280,6 +297,7 @@ export default function Processing() {
             return (
               <motion.div
                 key={agentStep.id}
+                ref={(el) => (agentRefs.current[index] = el)}
                 layout
                 className={`glass-dark p-6 rounded-2xl transition-all duration-300 ${
                   isActive
@@ -342,22 +360,9 @@ export default function Processing() {
                     </p>
 
                     <div className="bg-dark-800/80 border border-white/10 rounded-xl p-4 mb-3">
-                      <p className="text-sm text-gray-300 font-medium mb-3">
+                      <p className="text-sm text-gray-300 font-medium">
                         {agentOutput?.summary || agentStep.summary}
                       </p>
-
-                      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {Object.entries(agentOutput?.output || {}).map(([key, value]) => (
-                          <div key={key} className="rounded-lg bg-dark-700/60 p-2.5 border border-white/5">
-                            <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-0.5">
-                              {key.replace(/([A-Z])/g, ' $1')}
-                            </p>
-                            <p className="text-xs font-semibold text-white truncate">
-                              {Array.isArray(value) ? value.join(', ') : String(value)}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
                     </div>
 
                     <AnimatePresence>
@@ -388,29 +393,6 @@ export default function Processing() {
               </motion.div>
             )
           })}
-        </motion.div>
-
-        {/* Live Metrics Summary Bar */}
-        <motion.div
-          variants={itemVariants}
-          className="glass-dark p-8 rounded-2xl border border-white/10 grid grid-cols-2 md:grid-cols-4 gap-6 text-center"
-        >
-          <div>
-            <p className="text-4xl font-bold gradient-text">{analysis.metrics.tables || 12}</p>
-            <p className="text-xs text-gray-400 uppercase tracking-widest mt-1">Tables Found</p>
-          </div>
-          <div>
-            <p className="text-4xl font-bold gradient-text">{analysis.metrics.relationships || 42}</p>
-            <p className="text-xs text-gray-400 uppercase tracking-widest mt-1">Relationships</p>
-          </div>
-          <div>
-            <p className="text-4xl font-bold gradient-text">{analysis.metrics.embeddings || 1247}</p>
-            <p className="text-xs text-gray-400 uppercase tracking-widest mt-1">ChromaDB Vectors</p>
-          </div>
-          <div>
-            <p className="text-4xl font-bold gradient-text">{analysis.metrics.quality || 91}%</p>
-            <p className="text-xs text-gray-400 uppercase tracking-widest mt-1">Quality Score</p>
-          </div>
         </motion.div>
 
         {/* Next Action Navigation */}
