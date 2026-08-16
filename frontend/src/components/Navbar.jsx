@@ -61,7 +61,7 @@ export default function Navbar() {
             })}
           </div>
 
-          <h2>Version 1.5 :- 3 Layer Deployement </h2>
+          <h2>Version 1.5.1 :- 3 Layer Deployement </h2>
 
           <div className="hidden lg:flex items-center gap-3">
             {hasDb ? (
