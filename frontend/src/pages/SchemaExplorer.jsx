@@ -135,7 +135,7 @@ export default function SchemaExplorer() {
       label: rel.status === 'Explicit FK' ? 'FK' : 'Inferred',
       labelStyle: { fill: '#fff', fontSize: 10, fontWeight: 700 },
       labelBgStyle: { fill: 'rgba(15, 23, 42, 0.8)', stroke: 'rgba(255,255,255,0.1)', rx: 4 },
-      style: { stroke: rel.status === 'Explicit FK' ? '#7c3aed' : '#ec4899', strokeWidth: 2 }
+      style: { stroke: rel.status === 'Explicit FK' ? 'rgb(var(--color-primary))' : 'rgb(var(--color-accent))', strokeWidth: 2 }
     }))
 
     const layouted = getLayoutedElements(initialNodes, initialEdges, 'TB')
@@ -204,7 +204,7 @@ export default function SchemaExplorer() {
                 <Background color="rgba(255,255,255,0.08)" gap={20} size={1} />
                 <Controls className="bg-dark-900 border-white/10 fill-white" />
                 <MiniMap
-                  nodeColor={(n) => n.id === selectedTable ? '#7c3aed' : '#374151'}
+                  nodeColor={(n) => n.id === selectedTable ? 'rgb(var(--color-primary))' : '#374151'}
                   maskColor="rgba(0, 0, 0, 0.5)"
                   className="bg-dark-900 border border-white/10 rounded-lg"
                 />

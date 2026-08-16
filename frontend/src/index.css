@@ -3,6 +3,92 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --color-black: 0 0 0;
+    --color-white: 255 255 255;
+    --color-gray-50: 249 250 251;
+    --color-gray-100: 243 244 246;
+    --color-gray-200: 229 231 235;
+    --color-gray-300: 209 213 219;
+    --color-gray-400: 156 163 175;
+    --color-gray-500: 107 114 128;
+    --color-gray-600: 75 85 99;
+    --color-gray-700: 55 65 81;
+    --color-gray-800: 31 41 55;
+    --color-gray-900: 17 24 39;
+    
+    --color-dark-50: 249 250 251;
+    --color-dark-100: 243 244 246;
+    --color-dark-200: 229 231 235;
+    --color-dark-300: 209 213 219;
+    --color-dark-400: 156 163 175;
+    --color-dark-500: 107 114 128;
+    --color-dark-600: 75 85 99;
+    --color-dark-700: 55 65 81;
+    --color-dark-800: 31 41 55;
+    --color-dark-900: 17 24 39;
+    --color-dark-950: 3 7 18;
+
+    --color-primary: 124 58 237;
+    --color-secondary: 6 182 212;
+    --color-accent: 236 72 153;
+  }
+
+  .theme-cream {
+    /* Swap white for black/dark gray for text */
+    --color-black: 255 255 255;
+    --color-white: 26 26 26;
+    
+    /* Make gray colors slightly darker for contrast on cream bg */
+    --color-gray-100: 229 231 235;
+    --color-gray-200: 209 213 219;
+    --color-gray-300: 156 163 175;
+    --color-gray-400: 107 114 128;
+    --color-gray-500: 75 85 99;
+    
+    /* Swap dark backgrounds for cream colors */
+    --color-dark-950: 253 251 247;
+    --color-dark-900: 245 240 230;
+    --color-dark-800: 234 224 207;
+    --color-dark-700: 215 205 188;
+    --color-dark-600: 195 185 168;
+    --color-dark-500: 175 165 148;
+    --color-dark-400: 155 145 128;
+    --color-dark-300: 135 125 108;
+    --color-dark-200: 115 105 88;
+    --color-dark-100: 95 85 68;
+    --color-dark-50: 75 75 75;
+
+    /* Light red theme to replace purple */
+    --color-primary: 248 113 113;
+    --color-secondary: 244 63 94;
+    --color-accent: 251 113 133;
+  }
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  z-index: 1;
+}
+
+::view-transition-new(root) {
+  animation: water-drop 2.5s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 2;
+}
+
+@keyframes water-drop {
+  from {
+    clip-path: circle(0px at var(--click-x, 85%) var(--click-y, 5%));
+  }
+  to {
+    clip-path: circle(300vmax at var(--click-x, 85%) var(--click-y, 5%));
+  }
+}
+
   * {
     @apply scroll-smooth;
   }
@@ -140,10 +226,10 @@
 .gradient-animation {
   background: linear-gradient(
     -45deg,
-    rgba(124, 58, 237, 0.2),
-    rgba(6, 182, 212, 0.2),
-    rgba(236, 72, 153, 0.2),
-    rgba(124, 58, 237, 0.2)
+    rgb(var(--color-primary) / 0.2),
+    rgb(var(--color-secondary) / 0.2),
+    rgb(var(--color-accent) / 0.2),
+    rgb(var(--color-primary) / 0.2)
   );
   background-size: 400% 400%;
   animation: gradient 15s ease infinite;
@@ -167,10 +253,10 @@
 
 @keyframes glowText {
   0%, 100% {
-    text-shadow: 0 0 20px rgba(124, 58, 237, 0.5);
+    text-shadow: 0 0 20px rgb(var(--color-primary) / 0.5);
   }
   50% {
-    text-shadow: 0 0 40px rgba(124, 58, 237, 0.8);
+    text-shadow: 0 0 40px rgb(var(--color-primary) / 0.8);
   }
 }
 

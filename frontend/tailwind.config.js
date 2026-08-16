@@ -7,34 +7,48 @@ export default {
   theme: {
     extend: {
       colors: {
-        'dark': {
-          50: '#f9fafb',
-          100: '#f3f4f6',
-          200: '#e5e7eb',
-          300: '#d1d5db',
-          400: '#9ca3af',
-          500: '#6b7280',
-          600: '#4b5563',
-          700: '#374151',
-          800: '#1f2937',
-          900: '#111827',
-          950: '#030712'
+        black: 'rgb(var(--color-black) / <alpha-value>)',
+        white: 'rgb(var(--color-white) / <alpha-value>)',
+        gray: {
+          50: 'rgb(var(--color-gray-50) / <alpha-value>)',
+          100: 'rgb(var(--color-gray-100) / <alpha-value>)',
+          200: 'rgb(var(--color-gray-200) / <alpha-value>)',
+          300: 'rgb(var(--color-gray-300) / <alpha-value>)',
+          400: 'rgb(var(--color-gray-400) / <alpha-value>)',
+          500: 'rgb(var(--color-gray-500) / <alpha-value>)',
+          600: 'rgb(var(--color-gray-600) / <alpha-value>)',
+          700: 'rgb(var(--color-gray-700) / <alpha-value>)',
+          800: 'rgb(var(--color-gray-800) / <alpha-value>)',
+          900: 'rgb(var(--color-gray-900) / <alpha-value>)',
         },
-        'primary': '#7c3aed',
-        'secondary': '#06b6d4',
-        'accent': '#ec4899'
+        'dark': {
+          50: 'rgb(var(--color-dark-50) / <alpha-value>)',
+          100: 'rgb(var(--color-dark-100) / <alpha-value>)',
+          200: 'rgb(var(--color-dark-200) / <alpha-value>)',
+          300: 'rgb(var(--color-dark-300) / <alpha-value>)',
+          400: 'rgb(var(--color-dark-400) / <alpha-value>)',
+          500: 'rgb(var(--color-dark-500) / <alpha-value>)',
+          600: 'rgb(var(--color-dark-600) / <alpha-value>)',
+          700: 'rgb(var(--color-dark-700) / <alpha-value>)',
+          800: 'rgb(var(--color-dark-800) / <alpha-value>)',
+          900: 'rgb(var(--color-dark-900) / <alpha-value>)',
+          950: 'rgb(var(--color-dark-950) / <alpha-value>)'
+        },
+        'primary': 'rgb(var(--color-primary) / <alpha-value>)',
+        'secondary': 'rgb(var(--color-secondary) / <alpha-value>)',
+        'accent': 'rgb(var(--color-accent) / <alpha-value>)'
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
         'gradient-conic': 'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
-        'glass': 'rgba(255, 255, 255, 0.07)'
+        'glass': 'rgba(var(--color-white), 0.07)'
       },
       backdropBlur: {
         'glass': '10px'
       },
       boxShadow: {
-        'glow': '0 0 20px rgba(124, 58, 237, 0.5)',
-        'glow-lg': '0 0 40px rgba(124, 58, 237, 0.4)',
+        'glow': '0 0 20px rgb(var(--color-primary) / 0.5)',
+        'glow-lg': '0 0 40px rgb(var(--color-primary) / 0.4)',
         'card': '0 4px 24px rgba(0, 0, 0, 0.3)'
       }
     },

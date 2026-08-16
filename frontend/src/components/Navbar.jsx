@@ -1,13 +1,55 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Menu, X, Shield, GitBranch, Upload as UploadIcon, LogOut, Database } from 'lucide-react'
+import { Menu, X, Shield, GitBranch, Upload as UploadIcon, LogOut, Database, Sun, Moon } from 'lucide-react'
 import { loadAnalysis, clearAnalysis } from '../lib/analysisState'
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
   const [hasDb, setHasDb] = useState(false)
+  const [theme, setTheme] = useState('dark')
   const location = useLocation()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    // Check initial theme class
+    const savedTheme = localStorage.getItem('theme')
+    if (savedTheme === 'cream' || document.documentElement.classList.contains('theme-cream')) {
+      document.documentElement.classList.add('theme-cream')
+      setTheme('cream')
+    } else {
+      document.documentElement.classList.remove('theme-cream')
+      setTheme('dark')
+    }
+  }, [])
+
+  const toggleTheme = (e) => {
+    // Record click position for the transition origin
+    const x = e?.clientX ?? window.innerWidth * 0.85
+    const y = e?.clientY ?? window.innerHeight * 0.05
+    document.documentElement.style.setProperty('--click-x', `${x}px`)
+    document.documentElement.style.setProperty('--click-y', `${y}px`)
+
+    const isDark = theme === 'dark'
+
+    const updateDOM = () => {
+      if (isDark) {
+        document.documentElement.classList.add('theme-cream')
+        localStorage.setItem('theme', 'cream')
+        setTheme('cream')
+      } else {
+        document.documentElement.classList.remove('theme-cream')
+        localStorage.setItem('theme', 'dark')
+        setTheme('dark')
+      }
+    }
+
+    if (!document.startViewTransition) {
+      updateDOM()
+      return
+    }
+
+    document.startViewTransition(() => updateDOM())
+  }
   
   useEffect(() => {
     const analysis = loadAnalysis()
@@ -29,7 +71,7 @@ export default function Navbar() {
   ]
 
   return (
-    <div className="fixed top-0 w-full z-50 px-4 pt-4 pb-2">
+    <div className="absolute top-0 w-full z-50 px-4 pt-4 pb-2">
       <nav className="max-w-5xl mx-auto glass-dark border border-white/10 rounded-full px-4 sm:px-6 h-14 flex items-center justify-between backdrop-blur-xl bg-dark-950/80 shadow-card">
         
         {/* Logo and Version */}
@@ -40,7 +82,7 @@ export default function Navbar() {
           </Link>
           <div className="hidden sm:flex items-center">
             <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[10px] font-semibold text-gray-400 tracking-wide uppercase">
-              v1.7 UI Update
+              v1.7.1 Cream UI
             </span>
           </div>
         </div>
@@ -68,6 +110,14 @@ export default function Navbar() {
 
         {/* Desktop Actions (Right) */}
         <div className="hidden lg:flex items-center gap-3">
+          <button
+            onClick={toggleTheme}
+            className="text-gray-400 hover:text-white p-2 rounded-full hover:bg-white/5 transition-colors"
+            title="Toggle Theme"
+          >
+            {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </button>
+          
           {hasDb ? (
             <>
               <button
@@ -90,12 +140,20 @@ export default function Navbar() {
         </div>
 
         {/* Mobile Menu Toggle */}
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="lg:hidden text-gray-400 hover:text-white transition-colors p-1"
-        >
-          {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </button>
+        <div className="flex items-center gap-2 lg:hidden">
+          <button
+            onClick={toggleTheme}
+            className="text-gray-400 hover:text-white p-2 rounded-full hover:bg-white/5 transition-colors"
+          >
+            {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          </button>
+          <button
+            onClick={() => setIsOpen(!isOpen)}
+            className="text-gray-400 hover:text-white transition-colors p-1"
+          >
+            {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+        </div>
       </nav>
 
       {/* Mobile Dropdown */}

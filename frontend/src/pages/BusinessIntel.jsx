@@ -15,7 +15,7 @@ import { loadAnalysis, saveAnalysis, DATASETS } from '../lib/analysisState'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const COLORS = ['#7c3aed', '#06b6d4', '#ec4899', '#f59e0b', '#10b981', '#6366f1', '#f97316', '#8b5cf6']
+const COLORS = ['rgb(var(--color-primary))', 'rgb(var(--color-secondary))', 'rgb(var(--color-accent))', '#f59e0b', '#10b981', '#6366f1', '#f97316', '#8b5cf6']
 
 function fmtNum(val) {
   if (val == null || isNaN(+val)) return String(val ?? '0')
@@ -116,7 +116,7 @@ function ChartRenderer({ chart }) {
           <XAxis dataKey="name" stroke="rgba(255,255,255,0.4)" tick={{ fontSize: 11 }} />
           <YAxis stroke="rgba(255,255,255,0.4)" tick={{ fontSize: 11 }} tickFormatter={fmtNum} width={52} />
           <Tooltip contentStyle={tooltipStyle} formatter={v => [fmtNum(v), chart.yAxis || 'Value']} />
-          <Line type="monotone" dataKey="value" stroke="#7c3aed" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 7 }} />
+          <Line type="monotone" dataKey="value" stroke="rgb(var(--color-primary))" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 7 }} />
         </LineChart>
       </ResponsiveContainer>
     )

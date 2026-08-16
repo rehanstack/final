@@ -26,7 +26,7 @@ export default function Sidebar() {
   ]
 
   return (
-    <div className="w-64 h-screen fixed left-0 top-16 bg-dark-950 border-r border-white/10 hidden lg:flex flex-col z-40">
+    <div className="w-64 h-screen fixed left-0 top-0 pt-16 bg-dark-950 border-r border-white/10 hidden lg:flex flex-col z-40">
       
       {/* Active Database Badge */}
       <div className="p-6 border-b border-white/10">

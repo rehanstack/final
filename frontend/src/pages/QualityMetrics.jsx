@@ -151,7 +151,7 @@ export default function QualityMetrics() {
     }, 1000)
   }
 
-  const COLORS = ['#7c3aed', '#06b6d4', '#ec4899', '#f59e0b', '#10b981', '#6366f1']
+  const COLORS = ['rgb(var(--color-primary))', 'rgb(var(--color-secondary))', 'rgb(var(--color-accent))', '#f59e0b', '#10b981', '#6366f1']
 
   return (
     <div className="p-8 pb-20 max-w-7xl mx-auto w-full">
@@ -306,7 +306,7 @@ export default function QualityMetrics() {
                       formatter={(val, name, item) => [`${val}% Completeness`, item.payload.fullName]}
                       contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }} 
                     />
-                    <Bar dataKey="completeness" fill="#7c3aed" radius={[8, 8, 0, 0]} />
+                    <Bar dataKey="completeness" fill="rgb(var(--color-primary))" radius={[8, 8, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
