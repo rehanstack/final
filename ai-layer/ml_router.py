@@ -72,10 +72,11 @@ async def run_clustering(req: ClusterRequest):
         df = pd.DataFrame(req.data)
         features = req.feature_columns
         
-        missing_cols = [col for col in features if col not in df.columns]
-        if missing_cols:
-            raise ValueError(f"Missing requested features in the dataset: {missing_cols}")
-            
+        # Ensure all requested features exist in DataFrame (even if entirely missing in JSON)
+        for col in features:
+            if col not in df.columns:
+                df[col] = pd.NA
+                
         X = df[features].copy()
         
         # Preprocessing
