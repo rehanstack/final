@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { FileSpreadsheet, Search, ChevronLeft, ChevronRight, Download, Filter, Database, Columns, AlertCircle, AlertTriangle, CheckCircle2, Table2, Wand2, Copy, Check, Loader2, Code2, ChevronDown, Sparkles } from 'lucide-react'
 import { loadAnalysis, DATASETS } from '../lib/analysisState'
+import { apiPost } from '../lib/apiClient'
 
 // ─── Text-to-SQL helpers ─────────────────────────────────────────────────────
 
@@ -95,17 +96,14 @@ export default function DataExplorer() {
 
       const systemInstruction = `You are an expert SQL query writer. The user will describe what they want in plain English. Respond with ONLY a valid SQL query inside a \`\`\`sql\`\`\` code block. Do NOT include any explanation — only the SQL.\n\nSchema:\n${schemaStr}`
 
-      const res = await fetch('/api/rag-query', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: systemInstruction + '\n\nUser request: ' + question,
-          chatHistory: [],
-          schemaContext: { tables: schemaChunks }
-        })
+      const response = await apiPost('/api/rag-query', {
+        query: systemInstruction + '\n\nUser request: ' + question,
+        chatHistory: [],
+        schemaContext: { tables: schemaChunks }
       })
-      const data = await res.json()
-      if (!res.ok || !data.success) throw new Error(data.error || 'Failed to generate SQL')
+      
+      const data = response.data
+      if (response.status >= 400 || !data.success) throw new Error(data.error || 'Failed to generate SQL')
       const raw = data.answer || ''
       const sql = extractSql(raw) || raw
       setSqlResult({ sql, raw })

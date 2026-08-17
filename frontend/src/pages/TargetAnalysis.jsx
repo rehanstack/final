@@ -6,6 +6,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import Mermaid from '../components/Mermaid'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ScatterChart, Scatter } from 'recharts'
+import { apiPost } from '../lib/apiClient'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 const COLORS = ['rgb(var(--color-primary))', 'rgb(var(--color-secondary))', 'rgb(var(--color-accent))', '#f59e0b', '#10b981', '#6366f1']
@@ -166,17 +167,12 @@ CRITICAL INSTRUCTION: DO NOT output any reasoning trace, chain of thought, or <t
 IMPORTANT VISUALS: You MUST include at least one \`mermaid\` code block diagram (e.g. flowchart or pie chart) demonstrating the interaction between the features. You should also use Markdown tables and emojis to make the report visually engaging.
 LENGTH LIMIT: You MUST keep your entire response extremely concise (under 600 words) so it does not hit token limits and get cut off mid-sentence. Get straight to the key insights.`
 
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: prompt }] })
+      const response = await apiPost('/api/chat', { 
+        messages: [{ role: 'user', content: prompt }] 
       })
 
-      if (response.ok) {
-        const text = await response.text()
-        if (!text) throw new Error("Server returned an empty response body.")
-        
-        const data = JSON.parse(text)
+      if (response && response.status < 400) {
+        const data = response.data || {}
         let fullText = data.response || data.answer || data.content || ""
         
         // Aggressively strip out any think tags if the model still disobeys
@@ -184,24 +180,12 @@ LENGTH LIMIT: You MUST keep your entire response extremely concise (under 600 wo
         
         setAiFinalInsight(fullText || "No insights returned.")
       } else {
-        let errorMsg = `HTTP Error ${response.status} ${response.statusText}`
-        try {
-          const errText = await response.text()
-          if (errText) {
-            try {
-              const errData = JSON.parse(errText)
-              errorMsg = errData.error || errorMsg
-            } catch (e) {
-              errorMsg = errText.slice(0, 100) // show raw text if not json
-            }
-          }
-        } catch(e) {
-          // ignore
-        }
-        setAiFinalInsight(`**Error:** ${errorMsg}. Please check backend logs.`)
+        const status = response?.status || 'Unknown'
+        const errorMsg = response?.data?.error || response?.statusText || "Server error"
+        setAiFinalInsight(`**Error:** HTTP ${status} - ${errorMsg}. Please check backend logs.`)
       }
     } catch (err) {
-      setAiFinalInsight(`**Connection Failed.** Details: ${err.message}. Please ensure both Node.js backend and Python AI Layer are running.`)
+      setAiFinalInsight(`**Connection Failed.** Details: ${err.response?.data?.error || err.message}. Please ensure both Node.js backend and Python AI Layer are running.`)
     } finally {
       setLoadingInsight(false)
     }
