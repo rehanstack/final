@@ -173,7 +173,10 @@ LENGTH LIMIT: You MUST keep your entire response extremely concise (under 600 wo
       })
 
       if (response.ok) {
-        const data = await response.json()
+        const text = await response.text()
+        if (!text) throw new Error("Server returned an empty response body.")
+        
+        const data = JSON.parse(text)
         let fullText = data.response || data.answer || data.content || ""
         
         // Aggressively strip out any think tags if the model still disobeys
@@ -181,17 +184,24 @@ LENGTH LIMIT: You MUST keep your entire response extremely concise (under 600 wo
         
         setAiFinalInsight(fullText || "No insights returned.")
       } else {
-        let errorMsg = "Unknown error occurred"
+        let errorMsg = `HTTP Error ${response.status} ${response.statusText}`
         try {
-          const errData = await response.json()
-          errorMsg = errData.error || response.statusText
+          const errText = await response.text()
+          if (errText) {
+            try {
+              const errData = JSON.parse(errText)
+              errorMsg = errData.error || errorMsg
+            } catch (e) {
+              errorMsg = errText.slice(0, 100) // show raw text if not json
+            }
+          }
         } catch(e) {
-          errorMsg = response.statusText
+          // ignore
         }
-        setAiFinalInsight(`**Error ${response.status}:** ${errorMsg}. Please ensure the AI Python Layer is running.`)
+        setAiFinalInsight(`**Error:** ${errorMsg}. Please check backend logs.`)
       }
     } catch (err) {
-      setAiFinalInsight(`**Failed to connect.** Details: ${err.message}. Ensure both Node.js backend and Python AI Layer are running.`)
+      setAiFinalInsight(`**Connection Failed.** Details: ${err.message}. Please ensure both Node.js backend and Python AI Layer are running.`)
     } finally {
       setLoadingInsight(false)
     }
