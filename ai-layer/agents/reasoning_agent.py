@@ -19,9 +19,10 @@ class ReasoningAgent:
         self.business_implications = []
         
         api_key = os.environ.get("GROQ_API_KEY")
-        if api_key:
-            self.llm = ChatGroq(model="qwen/qwen3.6-27b", api_key=api_key, temperature=0.3, max_tokens=4000)
-        else:
+        try:
+            self.llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=api_key, temperature=0.3, max_tokens=4000)
+            print("ReasoningAgent initialized with Llama-3.3-70b.")
+        except Exception:
             self.llm = None
             
     def analyze_data_patterns(self, data_stats):

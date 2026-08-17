@@ -141,7 +141,7 @@ async def run_clustering(req: ClusterRequest):
 
             api_key = os.environ.get("GROQ_API_KEY")
             if api_key:
-                llm = ChatGroq(model="qwen/qwen3.6-27b", api_key=api_key, temperature=0.2)
+                llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=api_key, temperature=0.2)
                 
                 prompt = f"""You are an expert Data Scientist. I have clustered some data into {req.n_clusters} clusters using features: {features}.
 Here are the average values for each cluster:
@@ -211,7 +211,7 @@ async def get_cluster_suggestions(req: SuggestionRequest):
         if not api_key:
             raise ValueError("GROQ_API_KEY is not configured.")
 
-        llm = ChatGroq(model="qwen/qwen3.6-27b", api_key=api_key, temperature=0.3)
+        llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=api_key, temperature=0.3)
         
         prompt = f"""You are an expert Business Intelligence Analyst.
 A user wants to cluster their dataset named '{req.table_name}'.
