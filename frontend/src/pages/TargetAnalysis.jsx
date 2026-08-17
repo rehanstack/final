@@ -60,21 +60,37 @@ function buildGroupedBarData(rows, xCol, yCol, yIsNumeric) {
 // ─── Main Component ──────────────────────────────────────────────────────────
 export default function TargetAnalysis() {
   const [analysis] = useState(() => loadAnalysis())
-  const [selectedTableName, setSelectedTableName] = useState('')
-  const [targetCol, setTargetCol] = useState('')
+  const currentDatasetKey = analysis.datasetKey || 'E-Commerce Dataset'
+  const storageKey = `targetAnalysis_${currentDatasetKey}`
+
+  // Lazy initialize state from localStorage
+  const initSavedState = () => {
+    try { return JSON.parse(localStorage.getItem(storageKey)) || {} } catch { return {} }
+  }
+
+  const [selectedTableName, setSelectedTableName] = useState(() => initSavedState().selectedTableName || '')
+  const [targetCol, setTargetCol] = useState(() => initSavedState().targetCol || '')
   
   // Multivariate inputs state
-  const [selectedInputs, setSelectedInputs] = useState([])
+  const [selectedInputs, setSelectedInputs] = useState(() => initSavedState().selectedInputs || [])
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   
   // AI Insights State
-  const [aiFinalInsight, setAiFinalInsight] = useState("")
+  const [aiFinalInsight, setAiFinalInsight] = useState(() => initSavedState().aiFinalInsight || "")
   const [loadingInsight, setLoadingInsight] = useState(false)
 
   // Full screen chart modal state
   const [expandedChart, setExpandedChart] = useState(null)
 
-  const currentDatasetKey = analysis.datasetKey || 'E-Commerce Dataset'
+  useEffect(() => {
+    localStorage.setItem(storageKey, JSON.stringify({
+      selectedTableName,
+      targetCol,
+      selectedInputs,
+      aiFinalInsight
+    }))
+  }, [selectedTableName, targetCol, selectedInputs, aiFinalInsight, storageKey])
+
   const isCustom = currentDatasetKey === 'Custom CSV' || currentDatasetKey === 'SQL Dump'
   const datasetMeta = isCustom ? null : (DATASETS[currentDatasetKey] || DATASETS['E-Commerce Dataset'])
   const allTables = useMemo(() => analysis.tables || analysis.customData?.tables || datasetMeta?.tables || [], [analysis, datasetMeta])
