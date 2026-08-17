@@ -20,7 +20,7 @@ class ReasoningAgent:
         
         api_key = os.environ.get("GROQ_API_KEY")
         if api_key:
-            self.llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=api_key, temperature=0.3)
+            self.llm = ChatGroq(model="qwen/qwen3.6-27b", api_key=api_key, temperature=0.3, max_tokens=4000)
         else:
             self.llm = None
             

@@ -70,7 +70,7 @@ def rag_query(request: QueryRequest):
         if not api_key:
             raise HTTPException(status_code=500, detail="GROQ_API_KEY is not set in the AI Layer environment")
 
-        llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=api_key, temperature=0.2)
+        llm = ChatGroq(model="qwen/qwen3.6-27b", api_key=api_key, temperature=0.2, max_tokens=4000)
 
         # ── Step 1: Real ChromaDB semantic retrieval ──────────────────────────
         rag_agent = RAGKnowledgeAgent()
@@ -124,7 +124,7 @@ Context:
             "success": True,
             "answer": response.content,
             "confidence": 98 if retrieved_chunks and context_source.startswith("ChromaDB") else 90,
-            "provider": "FastAPI AI Layer — ChromaDB RAG + llama-3.3-70b-versatile",
+            "provider": "FastAPI AI Layer — ChromaDB RAG + qwen/qwen3.6-27b",
             "retrievedChunks": retrieved_chunks,
             "contextSource": context_source,
         }
@@ -143,7 +143,7 @@ def chat(request: ChatRequest):
         if not api_key:
             raise HTTPException(status_code=500, detail="GROQ_API_KEY is not set in the AI Layer environment")
 
-        llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=api_key, temperature=0.3)
+        llm = ChatGroq(model="qwen/qwen3.6-27b", api_key=api_key, temperature=0.3, max_tokens=4000)
 
         lc_messages = []
         for msg in request.messages:
@@ -161,7 +161,7 @@ def chat(request: ChatRequest):
         return {
             "success": True,
             "response": response.content,
-            "provider": "llama-3.3-70b-versatile",
+            "provider": "qwen/qwen3.6-27b",
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

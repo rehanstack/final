@@ -78,11 +78,11 @@ export default function Navbar() {
         <div className="flex items-center gap-4">
           <Link to="/" className="flex items-center gap-2 group">
             <Database className="w-5 h-5 text-red-500 group-hover:text-red-400 transition-colors" />
-            <span className="text-lg font-bold text-white tracking-tight group-hover:text-gray-200 transition-colors">DBSense</span>
+            <span className="text-lg font-bold tracking-tight bg-gradient-to-r from-primary via-secondary to-accent text-transparent bg-clip-text animate-text-gradient transition-opacity hover:opacity-80">DBSense</span>
           </Link>
           <div className="hidden sm:flex items-center">
             <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[10px] font-semibold text-gray-400 tracking-wide uppercase">
-              v1.7.4 Cream UI
+              v1.8 :- Target Analysis
             </span>
           </div>
         </div>

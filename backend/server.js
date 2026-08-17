@@ -883,8 +883,9 @@ If the query results are provided, formulate a natural language answer based on 
     try {
       const chatCompletion = await groq.chat.completions.create({
         messages: messages,
-        model: "llama-3.3-70b-versatile",
-        temperature: 0.2
+        model: "qwen/qwen3.6-27b",
+        temperature: 0.2,
+        max_tokens: 4000
       });
       answer = chatCompletion.choices[0]?.message?.content || answer;
     } catch (e) {

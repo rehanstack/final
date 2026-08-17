@@ -6,6 +6,7 @@ import Landing from './pages/Landing'
 import Upload from './pages/Upload'
 import Processing from './pages/Processing'
 import BusinessIntel from './pages/BusinessIntel'
+import TargetAnalysis from './pages/TargetAnalysis'
 import SchemaExplorer from './pages/SchemaExplorer'
 import QualityMetrics from './pages/QualityMetrics'
 import DataExplorer from './pages/DataExplorer'
@@ -38,6 +39,7 @@ export default function App() {
 
               {/* App Layout Routes (Require Authentication/Database) */}
               <Route path="/business-intel" element={<AppLayout><BusinessIntel /></AppLayout>} />
+              <Route path="/target-analysis" element={<AppLayout><TargetAnalysis /></AppLayout>} />
               <Route path="/schema-explorer" element={<AppLayout><SchemaExplorer /></AppLayout>} />
               <Route path="/quality-metrics" element={<AppLayout><QualityMetrics /></AppLayout>} />
               <Route path="/data-explorer" element={<AppLayout><DataExplorer /></AppLayout>} />

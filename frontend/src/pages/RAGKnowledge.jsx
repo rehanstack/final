@@ -145,7 +145,7 @@ export default function RAGKnowledge() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
           body: JSON.stringify({
-            model: 'llama-3.3-70b-versatile',
+            model: 'qwen/qwen3.6-27b',
             messages: apiMessages,
             temperature: 0.2
           })
