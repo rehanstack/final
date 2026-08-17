@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Database, Shield, Sparkles, Brain, LogOut, GitBranch, BarChart3, Activity, Table, Target } from 'lucide-react'
+import { LayoutDashboard, Database, Shield, Sparkles, Brain, LogOut, GitBranch, BarChart3, Activity, Table, Target, Network, TrendingUp, BrainCircuit } from 'lucide-react'
 import { clearAnalysis, loadAnalysis } from '../lib/analysisState'
 import { motion } from 'framer-motion'
 
@@ -22,6 +22,7 @@ export default function Sidebar() {
     { name: 'Schema Explorer', path: '/schema-explorer', icon: Database },
     { name: 'Quality Metrics', path: '/quality-metrics', icon: Activity },
     { name: 'Data Explorer', path: '/data-explorer', icon: Table },
+    { name: 'Clustering', path: '/clustering', icon: Network },
     { name: 'AI Insights', path: '/insights', icon: Sparkles },
     { name: 'RAG Knowledge', path: '/rag-knowledge', icon: Brain },
   ]

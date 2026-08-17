@@ -930,6 +930,21 @@ app.post('/api/chat', async (req, res) => {
   }
 })
 
+// Machine Learning Endpoints
+app.post('/api/ml/:action', async (req, res) => {
+  try {
+    const { action } = req.params
+    const aiLayerUrl = process.env.AI_LAYER_URL || 'http://127.0.0.1:8000'
+    const response = await axios.post(`${aiLayerUrl}/api/ml/${action}`, req.body, { timeout: 60000 })
+    return res.json(response.data)
+  } catch (error) {
+    const detail = error.response?.data?.detail || error.message || 'Failed to process ML request with AI Layer'
+    console.error(`ML Layer Error (${req.params.action}):`, detail)
+    res.status(500).json({ error: detail })
+  }
+})
+
+
 // Helper to safely parse formatted currency or comma-separated numbers (e.g. "$52,400.00" -> 52400)
 function parseCleanNumber(val) {
   if (val === null || val === undefined) return NaN

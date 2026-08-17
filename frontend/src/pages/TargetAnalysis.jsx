@@ -5,7 +5,7 @@ import { loadAnalysis, DATASETS } from '../lib/analysisState'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import Mermaid from '../components/Mermaid'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ScatterChart, Scatter } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ScatterChart, Scatter, Label } from 'recharts'
 import { apiPost } from '../lib/apiClient'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -25,8 +25,35 @@ function isNumericCol(colName, rows) {
 
 function extractNumber(val) {
   if (typeof val === 'number') return val
-  const clean = String(val).replace(/[^0-9.-]/g, '')
-  return Number(clean)
+  if (val == null || String(val).trim() === '') return NaN
+  
+  let str = String(val).toUpperCase().trim()
+  
+  const match = str.match(/(-?[0-9.,]+)\s*(K|M|B|L|CR)?/)
+  if (!match) {
+    const clean = str.replace(/[^0-9.-]/g, '')
+    return clean === '' ? NaN : Number(clean)
+  }
+
+  let num = Number(match[1].replace(/,/g, ''))
+  if (isNaN(num)) return NaN
+
+  const suffix = match[2]
+  if (suffix === 'K') num *= 1000
+  if (suffix === 'M') num *= 1000000
+  if (suffix === 'B') num *= 1000000000
+  if (suffix === 'L') num *= 100000
+  if (suffix === 'CR') num *= 10000000
+
+  return num
+}
+
+function formatCompactNumber(num) {
+  if (typeof num !== 'number' || isNaN(num)) return num
+  return new Intl.NumberFormat('en-US', {
+    notation: 'compact',
+    maximumFractionDigits: 2
+  }).format(num)
 }
 
 function buildScatterData(rows, xCol, yCol) {
@@ -143,18 +170,46 @@ export default function TargetAnalysis() {
 
   const univariateData = useMemo(() => {
     if (!targetCol || sampleRows.length === 0) return []
-    const counts = {}
-    sampleRows.forEach(row => {
-      let val = row[targetCol]
-      if (val == null) return
-      if (targetIsNumeric) {
-        val = Math.round(extractNumber(val) * 10) / 10
-      } else {
-        val = String(val).trim()
+    
+    if (targetIsNumeric) {
+      const nums = sampleRows.map(r => extractNumber(r[targetCol])).filter(n => !isNaN(n))
+      if (nums.length === 0) return []
+      
+      const min = Math.min(...nums)
+      const max = Math.max(...nums)
+      
+      if (min === max) {
+         return [{ name: formatCompactNumber(min), value: nums.length }]
       }
-      counts[val] = (counts[val] || 0) + 1
-    })
-    return Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 15)
+      
+      const uniqueVals = new Set(nums).size
+      const binCount = Math.min(10, uniqueVals)
+      const binSize = (max - min) / binCount
+      
+      const bins = Array(binCount).fill(0)
+      nums.forEach(n => {
+        let index = Math.floor((n - min) / binSize)
+        if (index >= binCount) index = binCount - 1
+        bins[index]++
+      })
+      
+      return bins.map((count, i) => {
+        const binStart = min + i * binSize
+        const binEnd = i === binCount - 1 ? max : min + (i + 1) * binSize
+        const name = `${formatCompactNumber(binStart)} - ${formatCompactNumber(binEnd)}`
+        return { name, value: count }
+      })
+    } else {
+      const counts = {}
+      sampleRows.forEach(row => {
+        let val = row[targetCol]
+        if (val == null) return
+        val = String(val).trim()
+        if (val === '') val = 'Unknown'
+        counts[val] = (counts[val] || 0) + 1
+      })
+      return Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 15)
+    }
   }, [targetCol, sampleRows, targetIsNumeric])
 
   const generateInsights = async () => {
@@ -352,7 +407,7 @@ LENGTH LIMIT: You MUST keep your entire response extremely concise (under 600 wo
               <div className="flex justify-between items-center mb-6">
                 <div>
                   <h2 className="text-xl font-bold flex items-center gap-2 text-primary">
-                    <BarChart2 className="w-5 h-5" /> Univariate Analysis
+                    <BarChart2 className="w-5 h-5" /> {targetIsNumeric ? 'Histogram Analysis' : 'Univariate Analysis'}
                   </h2>
                   <p className="text-sm text-gray-400 mt-1">Target Distribution: <strong className="text-white">{targetCol}</strong></p>
                 </div>
@@ -367,10 +422,15 @@ LENGTH LIMIT: You MUST keep your entire response extremely concise (under 600 wo
               
               <div className="h-[250px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={univariateData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <BarChart data={univariateData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-white) / 0.05)" />
-                    <XAxis dataKey="name" stroke="rgb(var(--color-white) / 0.4)" tick={{ fontSize: 12 }} />
-                    <Tooltip cursor={{ fill: 'rgb(var(--color-white) / 0.05)' }} contentStyle={{ backgroundColor: 'var(--color-dark-900)', borderColor: 'rgb(var(--color-primary))', borderRadius: '8px' }} />
+                    <XAxis dataKey="name" stroke="rgb(var(--color-white) / 0.4)" tick={{ fontSize: 12 }}>
+                      <Label value={targetCol} offset={-15} position="insideBottom" fill="rgb(var(--color-white) / 0.6)" fontSize={12} />
+                    </XAxis>
+                    <YAxis stroke="rgb(var(--color-white) / 0.4)" tick={{ fontSize: 12 }}>
+                      <Label value="Count" angle={-90} position="insideLeft" style={{ textAnchor: 'middle' }} fill="rgb(var(--color-white) / 0.6)" fontSize={12} offset={-5} />
+                    </YAxis>
+                    <Tooltip cursor={{ fill: 'rgb(var(--color-white) / 0.05)' }} contentStyle={{ backgroundColor: 'var(--color-dark-900)', borderColor: 'rgb(var(--color-primary))', borderRadius: '8px' }} formatter={(value) => [formatCompactNumber(value), 'Frequency']} labelFormatter={(label) => `${targetCol}: ${label}`} />
                     <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                       {univariateData.map((_, i) => <Cell key={i} fill="rgb(var(--color-primary))" />)}
                     </Bar>
@@ -410,21 +470,29 @@ LENGTH LIMIT: You MUST keep your entire response extremely concise (under 600 wo
                         <div className="flex-1 w-full">
                           {targetIsNumeric && isNumeric ? (
                             <ResponsiveContainer width="100%" height="100%">
-                              <ScatterChart margin={{ top: 5, right: 10, bottom: 5, left: -20 }}>
+                              <ScatterChart margin={{ top: 5, right: 10, bottom: 20, left: 10 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-white) / 0.05)" />
-                                <XAxis type="number" dataKey="x" name={col} stroke="rgb(var(--color-white) / 0.4)" tick={{ fontSize: 10 }} tickCount={5} />
-                                <YAxis type="number" dataKey="y" name={targetCol} stroke="rgb(var(--color-white) / 0.4)" tick={{ fontSize: 10 }} tickCount={5} />
-                                <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ backgroundColor: 'var(--color-dark-900)', borderColor: 'rgb(var(--color-secondary))', borderRadius: '8px', fontSize: '12px' }} />
+                                <XAxis type="number" dataKey="x" name={col} stroke="rgb(var(--color-white) / 0.4)" tick={{ fontSize: 10 }} tickCount={5}>
+                                  <Label value={col} offset={-15} position="insideBottom" fill="rgb(var(--color-white) / 0.6)" fontSize={11} />
+                                </XAxis>
+                                <YAxis type="number" dataKey="y" name={targetCol} stroke="rgb(var(--color-white) / 0.4)" tick={{ fontSize: 10 }} tickCount={5}>
+                                  <Label value={targetCol} angle={-90} position="insideLeft" style={{ textAnchor: 'middle' }} fill="rgb(var(--color-white) / 0.6)" fontSize={11} offset={-10} />
+                                </YAxis>
+                                <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ backgroundColor: 'var(--color-dark-900)', borderColor: 'rgb(var(--color-secondary))', borderRadius: '8px', fontSize: '12px' }} formatter={(val, name, props) => [formatCompactNumber(val), props.dataKey === 'x' ? col : targetCol]} />
                                 <Scatter data={buildScatterData(sampleRows, col, targetCol)} fill="rgb(var(--color-secondary))" fillOpacity={0.6} />
                               </ScatterChart>
                             </ResponsiveContainer>
                           ) : (
                             <ResponsiveContainer width="100%" height="100%">
-                              <BarChart data={buildGroupedBarData(sampleRows, isNumeric ? targetCol : col, isNumeric ? col : targetCol, targetIsNumeric || isNumeric)} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                              <BarChart data={buildGroupedBarData(sampleRows, isNumeric ? targetCol : col, isNumeric ? col : targetCol, targetIsNumeric || isNumeric)} margin={{ top: 5, right: 10, left: 10, bottom: 20 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-white) / 0.05)" />
-                                <XAxis dataKey="name" stroke="rgb(var(--color-white) / 0.4)" tick={{ fontSize: 10 }} />
-                                <YAxis stroke="rgb(var(--color-white) / 0.4)" tick={{ fontSize: 10 }} />
-                                <Tooltip cursor={{ fill: 'rgb(var(--color-white) / 0.05)' }} contentStyle={{ backgroundColor: 'var(--color-dark-900)', borderColor: 'rgb(var(--color-secondary))', borderRadius: '8px' }} />
+                                <XAxis dataKey="name" stroke="rgb(var(--color-white) / 0.4)" tick={{ fontSize: 10 }}>
+                                  <Label value={isNumeric ? targetCol : col} offset={-15} position="insideBottom" fill="rgb(var(--color-white) / 0.6)" fontSize={11} />
+                                </XAxis>
+                                <YAxis stroke="rgb(var(--color-white) / 0.4)" tick={{ fontSize: 10 }}>
+                                  <Label value={`Avg ${isNumeric ? col : targetCol}`} angle={-90} position="insideLeft" style={{ textAnchor: 'middle' }} fill="rgb(var(--color-white) / 0.6)" fontSize={11} offset={0} />
+                                </YAxis>
+                                <Tooltip cursor={{ fill: 'rgb(var(--color-white) / 0.05)' }} contentStyle={{ backgroundColor: 'var(--color-dark-900)', borderColor: 'rgb(var(--color-secondary))', borderRadius: '8px' }} formatter={(value) => [formatCompactNumber(value), `Avg ${isNumeric ? col : targetCol}`]} labelFormatter={(label) => `${isNumeric ? targetCol : col}: ${label}`} />
                                 <Bar dataKey="value" fill="rgb(var(--color-secondary))" radius={[4, 4, 0, 0]} />
                               </BarChart>
                             </ResponsiveContainer>
@@ -489,29 +557,41 @@ LENGTH LIMIT: You MUST keep your entire response extremely concise (under 600 wo
             <div className="flex-1 w-full max-w-7xl mx-auto bg-dark-900/50 border border-white/10 rounded-2xl p-4 md:p-8 flex items-center justify-center min-h-0">
               <ResponsiveContainer width="100%" height="100%">
                 {expandedChart.type === 'univariate' ? (
-                  <BarChart data={univariateData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
+                  <BarChart data={univariateData} margin={{ top: 20, right: 30, left: 30, bottom: 50 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-white) / 0.1)" />
-                    <XAxis dataKey="name" stroke="rgb(var(--color-white) / 0.6)" tick={{ fontSize: 14 }} angle={-45} textAnchor="end" height={60} />
-                    <YAxis stroke="rgb(var(--color-white) / 0.6)" tick={{ fontSize: 14 }} />
-                    <Tooltip cursor={{ fill: 'rgb(var(--color-white) / 0.05)' }} contentStyle={{ backgroundColor: 'var(--color-dark-900)', borderColor: 'rgb(var(--color-primary))', borderRadius: '12px', fontSize: '16px' }} />
+                    <XAxis dataKey="name" stroke="rgb(var(--color-white) / 0.6)" tick={{ fontSize: 14 }} angle={-45} textAnchor="end" height={60}>
+                      <Label value={targetCol} offset={-40} position="insideBottom" fill="rgb(var(--color-white) / 0.6)" fontSize={16} />
+                    </XAxis>
+                    <YAxis stroke="rgb(var(--color-white) / 0.6)" tick={{ fontSize: 14 }}>
+                      <Label value="Count" angle={-90} position="insideLeft" style={{ textAnchor: 'middle' }} fill="rgb(var(--color-white) / 0.6)" fontSize={16} offset={-10} />
+                    </YAxis>
+                    <Tooltip cursor={{ fill: 'rgb(var(--color-white) / 0.05)' }} contentStyle={{ backgroundColor: 'var(--color-dark-900)', borderColor: 'rgb(var(--color-primary))', borderRadius: '12px', fontSize: '16px' }} formatter={(value) => [formatCompactNumber(value), 'Frequency']} labelFormatter={(label) => `${targetCol}: ${label}`} />
                     <Bar dataKey="value" radius={[6, 6, 0, 0]}>
                       {univariateData.map((_, i) => <Cell key={i} fill="rgb(var(--color-primary))" />)}
                     </Bar>
                   </BarChart>
                 ) : expandedChart.type === 'scatter' ? (
-                  <ScatterChart margin={{ top: 20, right: 30, bottom: 20, left: 20 }}>
+                  <ScatterChart margin={{ top: 20, right: 30, bottom: 40, left: 30 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-white) / 0.1)" />
-                    <XAxis type="number" dataKey="x" name={expandedChart.col} stroke="rgb(var(--color-white) / 0.6)" tick={{ fontSize: 14 }} />
-                    <YAxis type="number" dataKey="y" name={targetCol} stroke="rgb(var(--color-white) / 0.6)" tick={{ fontSize: 14 }} />
-                    <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ backgroundColor: 'var(--color-dark-900)', borderColor: 'rgb(var(--color-secondary))', borderRadius: '12px', fontSize: '16px' }} />
+                    <XAxis type="number" dataKey="x" name={expandedChart.col} stroke="rgb(var(--color-white) / 0.6)" tick={{ fontSize: 14 }}>
+                      <Label value={expandedChart.col} offset={-30} position="insideBottom" fill="rgb(var(--color-white) / 0.6)" fontSize={16} />
+                    </XAxis>
+                    <YAxis type="number" dataKey="y" name={targetCol} stroke="rgb(var(--color-white) / 0.6)" tick={{ fontSize: 14 }}>
+                      <Label value={targetCol} angle={-90} position="insideLeft" style={{ textAnchor: 'middle' }} fill="rgb(var(--color-white) / 0.6)" fontSize={16} offset={-10} />
+                    </YAxis>
+                    <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ backgroundColor: 'var(--color-dark-900)', borderColor: 'rgb(var(--color-secondary))', borderRadius: '12px', fontSize: '16px' }} formatter={(val, name, props) => [formatCompactNumber(val), props.dataKey === 'x' ? expandedChart.col : targetCol]} />
                     <Scatter data={buildScatterData(sampleRows, expandedChart.col, targetCol)} fill="rgb(var(--color-secondary))" fillOpacity={0.7} />
                   </ScatterChart>
                 ) : (
-                  <BarChart data={buildGroupedBarData(sampleRows, isNumericCol(expandedChart.col, sampleRows) ? targetCol : expandedChart.col, isNumericCol(expandedChart.col, sampleRows) ? expandedChart.col : targetCol, true)} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
+                  <BarChart data={buildGroupedBarData(sampleRows, isNumericCol(expandedChart.col, sampleRows) ? targetCol : expandedChart.col, isNumericCol(expandedChart.col, sampleRows) ? expandedChart.col : targetCol, true)} margin={{ top: 20, right: 30, left: 30, bottom: 50 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-white) / 0.1)" />
-                    <XAxis dataKey="name" stroke="rgb(var(--color-white) / 0.6)" tick={{ fontSize: 14 }} angle={-45} textAnchor="end" height={60} />
-                    <YAxis stroke="rgb(var(--color-white) / 0.6)" tick={{ fontSize: 14 }} />
-                    <Tooltip cursor={{ fill: 'rgb(var(--color-white) / 0.05)' }} contentStyle={{ backgroundColor: 'var(--color-dark-900)', borderColor: 'rgb(var(--color-secondary))', borderRadius: '12px', fontSize: '16px' }} />
+                    <XAxis dataKey="name" stroke="rgb(var(--color-white) / 0.6)" tick={{ fontSize: 14 }} angle={-45} textAnchor="end" height={60}>
+                      <Label value={isNumericCol(expandedChart.col, sampleRows) ? targetCol : expandedChart.col} offset={-40} position="insideBottom" fill="rgb(var(--color-white) / 0.6)" fontSize={16} />
+                    </XAxis>
+                    <YAxis stroke="rgb(var(--color-white) / 0.6)" tick={{ fontSize: 14 }}>
+                      <Label value={`Avg ${isNumericCol(expandedChart.col, sampleRows) ? expandedChart.col : targetCol}`} angle={-90} position="insideLeft" style={{ textAnchor: 'middle' }} fill="rgb(var(--color-white) / 0.6)" fontSize={16} offset={-10} />
+                    </YAxis>
+                    <Tooltip cursor={{ fill: 'rgb(var(--color-white) / 0.05)' }} contentStyle={{ backgroundColor: 'var(--color-dark-900)', borderColor: 'rgb(var(--color-secondary))', borderRadius: '12px', fontSize: '16px' }} formatter={(value) => [formatCompactNumber(value), `Avg ${isNumericCol(expandedChart.col, sampleRows) ? expandedChart.col : targetCol}`]} labelFormatter={(label) => `${isNumericCol(expandedChart.col, sampleRows) ? targetCol : expandedChart.col}: ${label}`} />
                     <Bar dataKey="value" fill="rgb(var(--color-secondary))" radius={[6, 6, 0, 0]} />
                   </BarChart>
                 )}

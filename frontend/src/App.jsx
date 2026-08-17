@@ -12,6 +12,7 @@ import QualityMetrics from './pages/QualityMetrics'
 import DataExplorer from './pages/DataExplorer'
 import Insights from './pages/Insights'
 import RAGKnowledge from './pages/RAGKnowledge'
+import Clustering from './pages/Clustering'
 import Architecture from './pages/Architecture'
 import Security from './pages/Security'
 import { AnimatePresence } from 'framer-motion'
@@ -45,6 +46,7 @@ export default function App() {
               <Route path="/data-explorer" element={<AppLayout><DataExplorer /></AppLayout>} />
               <Route path="/insights" element={<AppLayout><Insights /></AppLayout>} />
               <Route path="/rag-knowledge" element={<AppLayout><RAGKnowledge /></AppLayout>} />
+              <Route path="/clustering" element={<AppLayout><Clustering /></AppLayout>} />
             </Routes>
           </AnimatePresence>
         </div>

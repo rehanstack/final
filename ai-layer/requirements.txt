@@ -12,3 +12,4 @@ pydantic
 python-dotenv
 langgraph
 pandas
+scikit-learn
