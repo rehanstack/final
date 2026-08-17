@@ -62,6 +62,7 @@ export default function Clustering() {
       }
     } catch (e) {
       console.error("Failed to fetch suggestions", e);
+      setErrorMsg(e.response?.data?.detail || e.response?.data?.error || "Failed to fetch AI suggestions. Please check your backend logs or GROQ_API_KEY.");
     } finally {
       setLoadingSuggestions(false);
     }
@@ -92,7 +93,9 @@ export default function Clustering() {
     
     const dataToCluster = sampleRows.map(r => {
       const obj = {}
-      featuresToUse.forEach(col => obj[col] = r[col])
+      featuresToUse.forEach(col => {
+        obj[col] = r[col] !== undefined ? r[col] : null;
+      })
       return obj
     })
 

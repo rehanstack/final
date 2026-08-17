@@ -85,7 +85,10 @@ async def run_clustering(req: ClusterRequest):
                 X[col] = X[col].fillna('Unknown').astype(str)
                 X[col] = le.fit_transform(X[col])
             else:
-                X[col] = X[col].fillna(X[col].median())
+                median_val = X[col].median()
+                if pd.isna(median_val):
+                    median_val = 0
+                X[col] = X[col].fillna(median_val)
                 
         # Clustering
         kmeans = KMeans(n_clusters=req.n_clusters, random_state=42, n_init='auto')
