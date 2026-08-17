@@ -66,9 +66,16 @@ class SuggestionRequest(BaseModel):
 @router.post("/cluster")
 async def run_clustering(req: ClusterRequest):
     try:
+        if not req.data:
+            raise ValueError("No data provided for clustering.")
+            
         df = pd.DataFrame(req.data)
         features = req.feature_columns
         
+        missing_cols = [col for col in features if col not in df.columns]
+        if missing_cols:
+            raise ValueError(f"Missing requested features in the dataset: {missing_cols}")
+            
         X = df[features].copy()
         
         # Preprocessing

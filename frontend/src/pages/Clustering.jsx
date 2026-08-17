@@ -94,7 +94,12 @@ export default function Clustering() {
       const obj = {}
       featuresToUse.forEach(col => obj[col] = r[col])
       return obj
-    }).filter(r => featuresToUse.every(f => r[f] !== null && r[f] !== undefined && r[f] !== ''))
+    })
+
+    if (dataToCluster.length === 0) {
+      setLoading(false)
+      return setErrorMsg("No data available to cluster for the selected features.")
+    }
 
     try {
       const response = await apiPost('/api/ml/cluster', { 
