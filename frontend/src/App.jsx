@@ -14,7 +14,6 @@ import Insights from './pages/Insights'
 import RAGKnowledge from './pages/RAGKnowledge'
 import Clustering from './pages/Clustering'
 import Architecture from './pages/Architecture'
-import Security from './pages/Security'
 import Team from './pages/Team'
 import { AnimatePresence } from 'framer-motion'
 import { ServerStatusProvider } from './context/ServerStatusContext'
@@ -34,7 +33,6 @@ export default function App() {
               <Route path="/upload" element={<Upload />} />
               <Route path="/processing" element={<Processing />} />
               <Route path="/architecture" element={<Architecture />} />
-              <Route path="/security" element={<Security />} />
               <Route path="/team" element={<Team />} />
 
               {/* Dashboard Redirect */}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Menu, X, Shield, GitBranch, Upload as UploadIcon, LogOut, Database, Sun, Moon, Settings, Users } from 'lucide-react'
+import { Menu, X, GitBranch, Upload as UploadIcon, LogOut, Database, Sun, Moon, Settings, Users } from 'lucide-react'
 import { loadAnalysis, clearAnalysis } from '../lib/analysisState'
 import AiSettingsModal from './AiSettingsModal'
 
@@ -69,7 +69,6 @@ export default function Navbar() {
 
   const links = [
     { name: 'Architecture', path: '/architecture', icon: GitBranch },
-    { name: 'Security', path: '/security', icon: Shield },
     { name: 'Team', path: '/team', icon: Users }
   ]
 
@@ -85,7 +84,7 @@ export default function Navbar() {
           </Link>
           <div className="hidden sm:flex items-center">
             <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[10px] font-semibold text-gray-400 tracking-wide uppercase">
-              v1.9.6 :- Clusters
+              v1.9.7 :- Clusters
             </span>
           </div>
         </div>
