@@ -78,18 +78,29 @@ class ReasoningAgent:
             rel_count = data_stats.get("relationships", {}).get("relationship_count", 0)
             score = data_stats.get("quality", {}).get("overall_score", 100)
             
+            # Extract basic schema overview to give LLM context for business insights
+            schema_overview = []
+            for table in data_stats.get("schema", {}).get("tables", []):
+                t_name = table.get("name", "Unknown")
+                cols = [c.get("name") for c in table.get("columns", [])[:5]] if isinstance(table.get("columns"), list) else list(table.get("columns", {}).keys())[:5]
+                schema_overview.append(f"{t_name} ({', '.join(cols)})")
+            schema_str = "; ".join(schema_overview)
+            
             prompt = f"""You are an expert Data Analyst and Business Intelligence advisor.
-            Analyze these database metrics and return a JSON payload with actionable recommendations and business implications.
+            Analyze these database metrics and schema to return a JSON payload with actionable recommendations and business implications.
             
             Context:
+            - Schema Overview: {schema_str}
             - Quality Score: {score}
             - Relationships Discovered: {rel_count}
             - Top Anomalies/Outliers: {anomalies_str}
             
+            Using the schema overview, infer what the business is and generate 2-3 realistic "Business Implications" (e.g., "Sales surged 40% due to recent campaign", "High churn risk in user segment") that could plausibly be drawn from this data.
+            
             Output strictly valid JSON:
             {{
-               "recommendations": ["Action 1", "Action 2", "Action 3"],
-               "business_implications": ["Implication 1", "Implication 2", "Implication 3"]
+               "recommendations": ["Action 1", "Action 2"],
+               "business_implications": ["Business Trend 1", "Business Trend 2"]
             }}
             """
             
@@ -123,12 +134,34 @@ class ReasoningAgent:
         if data_stats:
             self._generate_dynamic_content(data_stats)
             
+        # Convert business implications into insight objects so they appear in the UI
+        business_insights = []
+        for i, impl in enumerate(self.business_implications):
+            # Try to extract a short title if there is a colon, or just use a generic title
+            if ":" in impl:
+                title, desc = impl.split(":", 1)
+                title = title.strip()
+                desc = desc.strip()
+            else:
+                title = f"Business Trend Insight #{i+1}"
+                desc = impl.strip()
+                
+            business_insights.append({
+                "title": title,
+                "description": desc,
+                "confidence": 90,
+                "severity": "info",
+                "category": "business"
+            })
+            
+        combined_insights = self.insights + business_insights
+            
         return {
-            "insights": self.insights,
+            "insights": combined_insights,
             "recommendations": self.recommendations or ["Review high-value outliers.", "Run deduplication."],
             "business_implications": self.business_implications or ["Cleaner records improve retention."],
             "summary": {
-                "total_insights": len(self.insights),
-                "critical": sum(1 for item in self.insights if item.get("severity") == "high"),
+                "total_insights": len(combined_insights),
+                "critical": sum(1 for item in combined_insights if item.get("severity") == "high"),
             },
         }

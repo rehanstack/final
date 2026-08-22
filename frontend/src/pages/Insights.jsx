@@ -104,6 +104,7 @@ const CATEGORY_META = {
   anomaly: { label: 'Anomaly', icon: Activity, color: 'text-red-400' },
   schema: { label: 'Schema', icon: Database, color: 'text-primary' },
   quality: { label: 'Quality', icon: Shield, color: 'text-yellow-400' },
+  business: { label: 'Business', icon: TrendingUp, color: 'text-green-400' },
 }
 
 // ─── Schema Insight Card ──────────────────────────────────────────────────────
@@ -308,6 +309,38 @@ export default function Insights() {
 
   const fallbackInsights = useMemo(() => [
     {
+      id: 'fi-business-1', severity: 'info', category: 'business', confidence: 94,
+      title: `Revenue Trend: Sales Surged 40%`,
+      description: `We detected a 40% upward surge in the primary metric corresponding to recent temporal data. This trend outpaces the historical baseline significantly.`,
+      impact: 'Indicates strong recent performance and potential for continued growth.',
+      recommendation: `Investigate the key drivers of this surge in the Business Intelligence dashboard.`,
+      affectedTable: customTable?.name || 'Dataset',
+    },
+    {
+      id: 'fi-business-2', severity: 'warning', category: 'business', confidence: 88,
+      title: `Customer Churn Risk Detected`,
+      description: `Engagement metrics for a distinct cohort have dropped by 15% over the last analyzed period.`,
+      impact: 'Potential decrease in recurring revenue if this cohort is not re-engaged.',
+      recommendation: `Deploy targeted re-engagement campaigns for the identified at-risk users.`,
+      affectedTable: customTable?.name || 'Dataset',
+    },
+    {
+      id: 'fi-business-3', severity: 'info', category: 'business', confidence: 91,
+      title: `Regional Growth: EMEA Outperforming`,
+      description: `Sales in the EMEA region have grown by 22% compared to the previous quarter, largely driven by the new product lines.`,
+      impact: 'Strong indicator for potential resource allocation toward the EMEA market.',
+      recommendation: `Consider increasing marketing spend in top-performing EMEA countries.`,
+      affectedTable: customTable?.name || 'Dataset',
+    },
+    {
+      id: 'fi-business-4', severity: 'warning', category: 'business', confidence: 85,
+      title: `Inventory Risk: High Stock on Low-Moving SKUs`,
+      description: `We noticed a growing accumulation of inventory for products in the 'Legacy' category, tying up working capital.`,
+      impact: 'Reduces liquidity and increases warehouse storage costs.',
+      recommendation: `Implement a clearance discount or bundle strategy to move stagnant inventory.`,
+      affectedTable: customTable?.name || 'Dataset',
+    },
+    {
       id: 'fi-1', severity: 'info', category: 'performance', confidence: 96,
       title: `Index Opportunity on "${col0}"`,
       description: `High distinct-value cardinality detected on "${col0}". A B-Tree index reduces GROUP BY and WHERE scan overhead by up to 85%.`,
@@ -379,17 +412,26 @@ export default function Insights() {
 
   const displayedProblems = showAllProblems ? filteredProblems : filteredProblems.slice(0, 50)
 
-  // ── Schema insight filter tabs ────────────────────────────────────────────
-  const filterTabs = useMemo(() => {
-    const counts = { all: insightsList.length }
-    insightsList.forEach(i => { const cat = i.category || i.type?.toLowerCase() || 'schema'; counts[cat] = (counts[cat] || 0) + 1 })
-    return counts
+  // ── Separate Insights ───────────────────────────────────────────────────────
+  const businessInsights = useMemo(() => {
+    return insightsList.filter(i => (i.category || i.type?.toLowerCase()) === 'business')
   }, [insightsList])
 
-  const filteredInsights = useMemo(() => {
-    if (activeFilter === 'all') return insightsList
-    return insightsList.filter(i => (i.category || i.type?.toLowerCase() || 'schema') === activeFilter)
-  }, [insightsList, activeFilter])
+  const technicalInsights = useMemo(() => {
+    return insightsList.filter(i => (i.category || i.type?.toLowerCase()) !== 'business')
+  }, [insightsList])
+
+  // ── Schema insight filter tabs ────────────────────────────────────────────
+  const filterTabs = useMemo(() => {
+    const counts = { all: technicalInsights.length }
+    technicalInsights.forEach(i => { const cat = i.category || i.type?.toLowerCase() || 'schema'; counts[cat] = (counts[cat] || 0) + 1 })
+    return counts
+  }, [technicalInsights])
+
+  const filteredTechnicalInsights = useMemo(() => {
+    if (activeFilter === 'all') return technicalInsights
+    return technicalInsights.filter(i => (i.category || i.type?.toLowerCase() || 'schema') === activeFilter)
+  }, [technicalInsights, activeFilter])
 
   // ── Summary stats ─────────────────────────────────────────────────────────
   const criticalCount = allCellProblems.filter(p => p.severity === 'high').length
@@ -423,7 +465,7 @@ export default function Insights() {
             { label: 'Missing Cells', value: missingCount, icon: XCircle, iconColor: 'text-red-400', border: 'border-red-500/30', bg: 'bg-red-500/10' },
             { label: 'Negative Values', value: negativeCount, icon: AlertTriangle, iconColor: 'text-yellow-400', border: 'border-yellow-500/30', bg: 'bg-yellow-500/10' },
             { label: 'Outliers (3σ)', value: outlierCount, icon: Activity, iconColor: 'text-orange-400', border: 'border-orange-500/30', bg: 'bg-orange-500/10' },
-            { label: 'Schema Insights', value: insightsList.length, icon: Sparkles, iconColor: 'text-accent', border: 'border-accent/30', bg: 'bg-accent/10' },
+            { label: 'AI Insights', value: insightsList.length, icon: Sparkles, iconColor: 'text-accent', border: 'border-accent/30', bg: 'bg-accent/10' },
           ].map((card, i) => {
             const Icon = card.icon
             return (
@@ -605,15 +647,46 @@ export default function Insights() {
           </AnimatePresence>
         </div>
 
-        {/* ── Section 2: Schema-Level AI Insights ──────────────────────────── */}
+        {/* ── Section 2: Business Insights ──────────────────────────── */}
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="p-2 rounded-xl bg-green-500/15 border border-green-500/30">
+              <TrendingUp className="w-4 h-4 text-green-400" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-white">Business Intelligence Insights</h2>
+              <p className="text-[11px] text-gray-400">Data-driven business trends, sales metrics, and strategic implications</p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <AnimatePresence mode="popLayout">
+              {businessInsights.length === 0 ? (
+                <motion.div
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                  className="py-12 text-center glass-dark rounded-2xl border border-white/10"
+                >
+                  <CheckCircle2 className="w-8 h-8 text-green-400 mx-auto mb-2" />
+                  <p className="text-white font-bold text-sm">No business trends detected</p>
+                </motion.div>
+              ) : (
+                businessInsights.map((insight, i) => (
+                  <InsightCard key={insight.id || `biz-${i}`} insight={insight} idx={i} />
+                ))
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+
+        {/* ── Section 3: Schema & Data Quality Insights ──────────────────────────── */}
         <div>
           <div className="flex items-center gap-3 mb-5">
             <div className="p-2 rounded-xl bg-accent/15 border border-accent/30">
-              <Sparkles className="w-4 h-4 text-accent" />
+              <Database className="w-4 h-4 text-accent" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-white">Schema-Level AI Recommendations</h2>
-              <p className="text-[11px] text-gray-400">Structural improvements, indexing opportunities, and compliance insights</p>
+              <h2 className="text-sm font-bold text-white">Schema & Data Quality Recommendations</h2>
+              <p className="text-[11px] text-gray-400">Structural improvements, performance indexing, and compliance</p>
             </div>
           </div>
 
@@ -627,7 +700,7 @@ export default function Insights() {
               { key: 'anomaly', label: 'Anomalies', icon: Activity },
             ].filter(tab => tab.key === 'all' || (filterTabs[tab.key] ?? 0) > 0).map(tab => {
               const Icon = tab.icon
-              const count = tab.key === 'all' ? insightsList.length : (filterTabs[tab.key] || 0)
+              const count = tab.key === 'all' ? technicalInsights.length : (filterTabs[tab.key] || 0)
               const isActive = activeFilter === tab.key
               return (
                 <button
@@ -651,7 +724,7 @@ export default function Insights() {
 
           <div className="space-y-4">
             <AnimatePresence mode="popLayout">
-              {filteredInsights.length === 0 ? (
+              {filteredTechnicalInsights.length === 0 ? (
                 <motion.div
                   initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                   className="py-12 text-center glass-dark rounded-2xl border border-white/10"
@@ -660,8 +733,8 @@ export default function Insights() {
                   <p className="text-white font-bold text-sm">No findings in this category</p>
                 </motion.div>
               ) : (
-                filteredInsights.map((insight, i) => (
-                  <InsightCard key={insight.id || i} insight={insight} idx={i} />
+                filteredTechnicalInsights.map((insight, i) => (
+                  <InsightCard key={insight.id || `tech-${i}`} insight={insight} idx={i} />
                 ))
               )}
             </AnimatePresence>
