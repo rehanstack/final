@@ -76,7 +76,6 @@ class MasterAgent:
         import time
         start_time = time.time()
         try:
-            time.sleep(1.5) # Hackathon cinematic pacing
             schema = self.agents["schema"].extract_schema(state["database_connection"])
             state["schema"] = schema
             state["completed"].append("schema")
@@ -89,7 +88,6 @@ class MasterAgent:
         import time
         start_time = time.time()
         try:
-            time.sleep(1.2) # Hackathon cinematic pacing
             if state.get("schema"):
                 self.agents["relationship"].discover_foreign_keys(state["schema"])
                 state["relationship_metadata"] = self.agents["relationship"].generate_relationship_metadata()
@@ -103,7 +101,6 @@ class MasterAgent:
         import time
         start_time = time.time()
         try:
-            time.sleep(2.1) # Hackathon cinematic pacing
             if state.get("schema"):
                 self.agents["quality"].schema = state["schema"]
                 state["quality"] = self.agents["quality"].generate_quality_report()
@@ -117,7 +114,6 @@ class MasterAgent:
         import time
         start_time = time.time()
         try:
-            time.sleep(1.8) # Hackathon cinematic pacing
             if state.get("schema"):
                 chunks = self.agents["rag"].chunk_schema_metadata(state["schema"])
                 embedded_chunks = self.agents["rag"].generate_embeddings(chunks)
@@ -132,7 +128,6 @@ class MasterAgent:
         import time
         start_time = time.time()
         try:
-            time.sleep(2.5) # Hackathon cinematic pacing
             if state.get("schema"):
                 stats = {
                     "schema": state.get("schema", {}), 
@@ -154,7 +149,6 @@ class MasterAgent:
         import time
         start_time = time.time()
         try:
-            time.sleep(1.4) # Hackathon cinematic pacing
             if state.get("schema"):
                 charts = self.agents["visualization"].generate_chart_configs({
                     "schema": state.get("schema"),

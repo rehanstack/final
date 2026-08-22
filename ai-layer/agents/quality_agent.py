@@ -111,17 +111,19 @@ class DataQualityAgent:
                 if std > 0:
                     upper_bound = mean + (3 * std)
                     lower_bound = mean - (3 * std)
-                    outlier_df = df[(df[col_name] > upper_bound) | (df[col_name] < lower_bound)]
                     
-                    count = len(outlier_df)
-                    if count > 0:
-                        outliers.append({
-                            "table": table_name,
-                            "column": col_name,
-                            "count": count,
-                            "rule": f"value > {upper_bound:.2f} or < {lower_bound:.2f} (3 std devs)",
-                            "severity": "high" if count > len(df) * 0.05 else "medium",
-                        })
+                    for index, row in df.iterrows():
+                        val = row[col_name]
+                        if val > upper_bound or val < lower_bound:
+                            outliers.append({
+                                "tableName": table_name,
+                                "column": col_name,
+                                "rowIdx": int(index) + 1,
+                                "value": str(val),
+                                "issueType": "Statistical Outlier",
+                                "severity": "warning",
+                                "description": f"Value {val} is >3σ from column mean (μ={round(mean)}, σ={round(std)})."
+                            })
         except Exception as e:
             print(f"Error outlier {table_name}.{col_name}:", e)
             

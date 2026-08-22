@@ -32,35 +32,14 @@ function isDuplicate(val, seen) {
   return false
 }
 
-function isOutlier(val, mean, stddev) {
-  const n = parseFloat(String(val).replace(/[^0-9.-]/g, ''))
-  if (isNaN(n) || stddev === 0) return false
-  return Math.abs(n - mean) > 3 * stddev
-}
-
-/** Compute mean + stddev for a numeric column */
-function colStats(rows, colName) {
-  const nums = rows.map(r => parseFloat(String(r?.[colName] ?? '').replace(/[^0-9.-]/g, ''))).filter(n => !isNaN(n))
-  if (nums.length === 0) return { mean: 0, stddev: 0 }
-  const mean = nums.reduce((a, b) => a + b, 0) / nums.length
-  const variance = nums.reduce((a, b) => a + (b - mean) ** 2, 0) / nums.length
-  return { mean, stddev: Math.sqrt(variance) }
-}
-
 /**
- * Scan a single table's sampleRows and return an array of cell-level problems.
+ * Scan a single table's sampleRows and return an array of cell-level problems (excluding math outliers now handled by backend).
  * Each problem: { tableName, column, rowIdx (1-based), value, issueType, severity }
  */
 function scanTable(tableName, columns, sampleRows) {
   if (!sampleRows || sampleRows.length === 0) return []
 
   const colNames = columns.map(c => (typeof c === 'string' ? c : (c.name || '')))
-
-  // Precompute stats for numeric columns
-  const stats = {}
-  colNames.forEach(col => {
-    stats[col] = colStats(sampleRows, col)
-  })
 
   // Track seen values per column for duplicate detection (only for string/id-like columns)
   const seenMaps = {}
@@ -83,17 +62,6 @@ function scanTable(tableName, columns, sampleRows) {
 
       if (isNegative(val)) {
         problems.push({ tableName, column: col, rowIdx: rowNum, value: strVal, issueType: 'Negative Value', severity: 'warning', description: 'Unexpected negative number in this column.' })
-      }
-
-      // Outlier detection for numeric columns
-      const { mean, stddev } = stats[col]
-      if (stddev > 0 && isOutlier(val, mean, stddev)) {
-        const n = parseFloat(strVal.replace(/[^0-9.-]/g, ''))
-        problems.push({
-          tableName, column: col, rowIdx: rowNum, value: strVal,
-          issueType: 'Statistical Outlier', severity: 'warning',
-          description: `Value ${n.toLocaleString()} is >3σ from column mean (μ=${Math.round(mean).toLocaleString()}, σ=${Math.round(stddev).toLocaleString()}).`
-        })
       }
     })
   })
@@ -388,8 +356,15 @@ export default function Insights() {
       const cols = t.columns || (t.sampleRows?.[0] ? Object.keys(t.sampleRows[0]).map(k => ({ name: k })) : [])
       problems.push(...scanTable(t.name || 'Table', cols, t.sampleRows || []))
     })
+    
+    // Add backend-detected anomalies (Outliers)
+    const backendAnomalies = analysis.customData?.quality?.anomalies || analysis.quality?.anomalies || []
+    if (Array.isArray(backendAnomalies)) {
+      problems.push(...backendAnomalies)
+    }
+    
     return problems
-  }, [allTables])
+  }, [allTables, analysis])
 
   // Unique tables and issue types for filter dropdowns
   const tableNames = useMemo(() => [...new Set(allCellProblems.map(p => p.tableName))], [allCellProblems])
