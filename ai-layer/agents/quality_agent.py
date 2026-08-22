@@ -112,7 +112,10 @@ class DataQualityAgent:
                     upper_bound = mean + (3 * std)
                     lower_bound = mean - (3 * std)
                     
+                    count = 0
                     for index, row in df.iterrows():
+                        if count >= 50:
+                            break
                         val = row[col_name]
                         if val > upper_bound or val < lower_bound:
                             outliers.append({
@@ -124,6 +127,7 @@ class DataQualityAgent:
                                 "severity": "warning",
                                 "description": f"Value {val} is >3σ from column mean (μ={round(mean)}, σ={round(std)})."
                             })
+                            count += 1
         except Exception as e:
             print(f"Error outlier {table_name}.{col_name}:", e)
             
