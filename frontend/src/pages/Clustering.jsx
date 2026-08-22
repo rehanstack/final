@@ -90,23 +90,14 @@ export default function Clustering() {
     setLoading(true)
     setErrorMsg('')
     setClusterResults(null)
-    
-    const dataToCluster = sampleRows.map(r => {
-      const obj = {}
-      featuresToUse.forEach(col => {
-        obj[col] = r[col] !== undefined ? r[col] : null;
-      })
-      return obj
-    })
-
-    if (dataToCluster.length === 0) {
+    if (sampleRows.length === 0) {
       setLoading(false)
-      return setErrorMsg("No data available to cluster for the selected features.")
+      return setErrorMsg("No data available in this table.")
     }
 
     try {
       const response = await apiPost('/api/ml/cluster', { 
-        data: dataToCluster, 
+        table_name: selectedTableName, 
         feature_columns: selectedFeatures, 
         n_clusters: clusterCount 
       })

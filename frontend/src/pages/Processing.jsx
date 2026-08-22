@@ -175,7 +175,8 @@ export default function Processing() {
             host: 'localhost', 
             dbName: 'dbsense.db', 
             username: '', 
-            password: '' 
+            password: '',
+            dynamicKpis: analysis.customData?.dynamicKpis || []
           });
           
           if (aiRes.data?.success && aiRes.data?.customDetails) {

@@ -52,10 +52,14 @@ def extract_number(val):
 
 # --- Models ---
 
+from sqlalchemy import create_engine, text
+
 class ClusterRequest(BaseModel):
-    data: List[Dict[str, Any]]
+    data: Optional[List[Dict[str, Any]]] = None
     feature_columns: List[str]
     n_clusters: int = 3
+    table_name: Optional[str] = None
+    db_config: Optional[Dict[str, Any]] = None
 
 class SuggestionRequest(BaseModel):
     available_columns: List[str]
@@ -66,13 +70,31 @@ class SuggestionRequest(BaseModel):
 @router.post("/cluster")
 async def run_clustering(req: ClusterRequest):
     try:
-        if not req.data:
-            raise ValueError("No data provided for clustering.")
+        if req.table_name:
+            db_type = req.db_config.get("dbType", "sqlite") if req.db_config else "sqlite"
+            if "sqlite" in db_type.lower():
+                filename = req.db_config.get("filename", "../backend/dbsense.db") if req.db_config else "../backend/dbsense.db"
+                engine = create_engine(f"sqlite:///{filename}")
+            else:
+                host = req.db_config.get("host", "localhost")
+                dbname = req.db_config.get("dbName", "")
+                user = req.db_config.get("username", "")
+                password = req.db_config.get("password", "")
+                engine = create_engine(f"postgresql://{user}:{password}@{host}/{dbname}")
+
+            with engine.connect() as conn:
+                cols_str = ", ".join([f'"{c}"' for c in req.feature_columns])
+                query = text(f'SELECT {cols_str} FROM "{req.table_name}" LIMIT 5000')
+                result = conn.execute(query).fetchall()
+                df = pd.DataFrame(result, columns=req.feature_columns)
+        elif req.data:
+            df = pd.DataFrame(req.data)
+        else:
+            raise ValueError("No data or table_name provided for clustering.")
             
-        df = pd.DataFrame(req.data)
         features = req.feature_columns
         
-        # Ensure all requested features exist in DataFrame (even if entirely missing in JSON)
+        # Ensure all requested features exist in DataFrame
         for col in features:
             if col not in df.columns:
                 df[col] = pd.NA

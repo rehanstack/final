@@ -42,6 +42,7 @@ class ConnectionConfig(BaseModel):
     username: str
     password: str
     filename: str = ""
+    dynamicKpis: List[Dict[str, Any]] = []
 
 class QueryRequest(BaseModel):
     query: str

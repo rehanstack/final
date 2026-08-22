@@ -132,7 +132,8 @@ class MasterAgent:
                 stats = {
                     "schema": state.get("schema", {}), 
                     "relationships": state.get("relationship_metadata", {}), 
-                    "quality": state.get("quality", {})
+                    "quality": state.get("quality", {}),
+                    "kpis": state.get("database_connection", {}).get("dynamicKpis", [])
                 }
                 patterns = self.agents["reasoning"].analyze_data_patterns(stats)
                 quality = state.get("quality", {})

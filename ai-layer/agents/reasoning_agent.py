@@ -86,16 +86,19 @@ class ReasoningAgent:
                 schema_overview.append(f"{t_name} ({', '.join(cols)})")
             schema_str = "; ".join(schema_overview)
             
+            kpis_str = json.dumps(data_stats.get("kpis", []))
+            
             prompt = f"""You are an expert Data Analyst and Business Intelligence advisor.
-            Analyze these database metrics and schema to return a JSON payload with actionable recommendations and business implications.
+            Analyze these database metrics, schema, and EXACT numeric KPIs to return a JSON payload with actionable recommendations and business implications.
             
             Context:
             - Schema Overview: {schema_str}
             - Quality Score: {score}
             - Relationships Discovered: {rel_count}
             - Top Anomalies/Outliers: {anomalies_str}
+            - Computed KPIs: {kpis_str}
             
-            Using the schema overview, infer what the business is and generate 2-3 realistic "Business Implications" (e.g., "Sales surged 40% due to recent campaign", "High churn risk in user segment") that could plausibly be drawn from this data.
+            Analyze these EXACT numeric KPIs and anomalies. Do NOT invent data. Generate 2-3 realistic "Business Implications" grounded strictly in the provided data.
             
             Output strictly valid JSON:
             {{

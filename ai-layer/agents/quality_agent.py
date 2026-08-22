@@ -3,7 +3,6 @@ Data Quality Agent for DBSense AI
 Responsible for analyzing and reporting data quality metrics.
 """
 from sqlalchemy import create_engine, text
-import pandas as pd
 
 class DataQualityAgent:
     """
@@ -102,32 +101,35 @@ class DataQualityAgent:
             return outliers
             
         try:
-            query = f'SELECT "{col_name}" FROM "{table_name}" WHERE "{col_name}" IS NOT NULL'
-            df = pd.read_sql(query, self.engine)
-            
-            if len(df) > 10:
-                mean = df[col_name].mean()
-                std = df[col_name].std()
-                if std > 0:
-                    upper_bound = mean + (3 * std)
-                    lower_bound = mean - (3 * std)
+            with self.engine.connect() as conn:
+                if self.engine.dialect.name == "sqlite":
+                    stats_query = text(f'SELECT AVG("{col_name}") as mean, SQRT(AVG("{col_name}" * "{col_name}") - AVG("{col_name}") * AVG("{col_name}")) as stddev FROM "{table_name}" WHERE "{col_name}" IS NOT NULL')
+                else:
+                    stats_query = text(f'SELECT AVG("{col_name}") as mean, STDDEV("{col_name}") as stddev FROM "{table_name}" WHERE "{col_name}" IS NOT NULL')
+                
+                result = conn.execute(stats_query).fetchone()
+                if result and result[0] is not None and result[1] is not None:
+                    mean = float(result[0])
+                    std = float(result[1])
                     
-                    count = 0
-                    for index, row in df.iterrows():
-                        if count >= 50:
-                            break
-                        val = row[col_name]
-                        if val > upper_bound or val < lower_bound:
+                    if std > 0:
+                        upper_bound = mean + (3 * std)
+                        lower_bound = mean - (3 * std)
+                        
+                        outlier_query = text(f'SELECT "{col_name}" FROM "{table_name}" WHERE "{col_name}" > :upper OR "{col_name}" < :lower LIMIT 50')
+                        outlier_results = conn.execute(outlier_query, {"upper": upper_bound, "lower": lower_bound}).fetchall()
+                        
+                        for idx, row in enumerate(outlier_results):
+                            val = row[0]
                             outliers.append({
                                 "tableName": table_name,
                                 "column": col_name,
-                                "rowIdx": int(index) + 1,
+                                "rowIdx": idx + 1,
                                 "value": str(val),
                                 "issueType": "Statistical Outlier",
                                 "severity": "warning",
                                 "description": f"Value {val} is >3σ from column mean (μ={round(mean)}, σ={round(std)})."
                             })
-                            count += 1
         except Exception as e:
             print(f"Error outlier {table_name}.{col_name}:", e)
             
