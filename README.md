@@ -11,7 +11,7 @@
 
 <br/>
 
-### [✨ View Live Demo ✨](https://dbsense-ai-demo.example.com)
+### [✨ View Live Demo ✨](https://ffrontend-6dbm.onrender.com/)
 
 </div>
 
