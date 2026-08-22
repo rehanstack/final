@@ -1,5 +1,14 @@
 import axios from 'axios'
 
+// Helper to get custom AI gateway URL from local storage
+const getCustomAiGatewayUrl = () => {
+  try {
+    return localStorage.getItem('aiGatewayUrl') || null;
+  } catch (e) {
+    return null;
+  }
+};
+
 const PORTS = [5006, 5001, 5002, 5005, 5000, 5003]
 
 // Use Vercel/Vite environment variable if provided
@@ -29,6 +38,15 @@ function isValidApiResponse(response) {
  */
 export async function apiPost(endpoint, body, config = {}) {
   let lastError = null
+
+  // Inject custom AI gateway URL if configured
+  const customAiUrl = getCustomAiGatewayUrl();
+  if (customAiUrl) {
+    config.headers = {
+      ...config.headers,
+      'x-ai-gateway-url': customAiUrl
+    };
+  }
 
   // Debugging log to help users know if Vercel env var was injected properly
   if (!API_BASE_URL) {
@@ -75,6 +93,15 @@ export async function apiPost(endpoint, body, config = {}) {
  */
 export async function apiGet(endpoint, config = {}) {
   let lastError = null
+
+  // Inject custom AI gateway URL if configured
+  const customAiUrl = getCustomAiGatewayUrl();
+  if (customAiUrl) {
+    config.headers = {
+      ...config.headers,
+      'x-ai-gateway-url': customAiUrl
+    };
+  }
 
   if (!API_BASE_URL) {
     console.warn("⚠️ VITE_API_URL is missing.");

@@ -1,0 +1,144 @@
+{
+  "users": [
+    {
+      "id": 1001,
+      "name": "Aarav Mehta",
+      "email": "aarav@example.com",
+      "age": 21,
+      "isActive": true,
+      "role": "developer",
+      "skills": ["JavaScript", "React", "Node.js"],
+      "address": {
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "country": "India",
+        "pincode": 400001
+      },
+      "orders": [
+        {
+          "orderId": "ORD-7821",
+          "product": "Mechanical Keyboard",
+          "quantity": 1,
+          "price": 3499,
+          "status": "delivered"
+        },
+        {
+          "orderId": "ORD-8142",
+          "product": "USB-C Hub",
+          "quantity": 2,
+          "price": 1299,
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "id": 1002,
+      "name": "Isha Sharma",
+      "email": "isha@example.com",
+      "age": 24,
+      "isActive": true,
+      "role": "designer",
+      "skills": ["Figma", "UI/UX", "Photoshop"],
+      "address": {
+        "city": "Pune",
+        "state": "Maharashtra",
+        "country": "India",
+        "pincode": 411001
+      },
+      "orders": [
+        {
+          "orderId": "ORD-9217",
+          "product": "Drawing Tablet",
+          "quantity": 1,
+          "price": 8999,
+          "status": "delivered"
+        }
+      ]
+    },
+    {
+      "id": 1003,
+      "name": "Rohan Verma",
+      "email": "rohan@example.com",
+      "age": 19,
+      "isActive": false,
+      "role": "student",
+      "skills": ["Python", "C++", "SQL"],
+      "address": {
+        "city": "Delhi",
+        "state": "Delhi",
+        "country": "India",
+        "pincode": 110001
+      },
+      "orders": []
+    },
+    {
+      "id": 1004,
+      "name": "Neha Kapoor",
+      "email": "neha@example.com",
+      "age": 28,
+      "isActive": true,
+      "role": "manager",
+      "skills": ["Leadership", "Excel", "Project Management"],
+      "address": {
+        "city": "Bangalore",
+        "state": "Karnataka",
+        "country": "India",
+        "pincode": 560001
+      },
+      "orders": [
+        {
+          "orderId": "ORD-4532",
+          "product": "Laptop Stand",
+          "quantity": 1,
+          "price": 2199,
+          "status": "cancelled"
+        },
+        {
+          "orderId": "ORD-4621",
+          "product": "Wireless Mouse",
+          "quantity": 1,
+          "price": 1599,
+          "status": "delivered"
+        }
+      ]
+    }
+  ],
+  "company": {
+    "name": "NovaTech Solutions",
+    "founded": 2018,
+    "employees": 87,
+    "isRemote": true,
+    "departments": [
+      {
+        "name": "Engineering",
+        "employees": 42,
+        "budget": 12500000
+      },
+      {
+        "name": "Design",
+        "employees": 15,
+        "budget": 4200000
+      },
+      {
+        "name": "Marketing",
+        "employees": 18,
+        "budget": 5800000
+      },
+      {
+        "name": "HR",
+        "employees": 12,
+        "budget": 2700000
+      }
+    ]
+  },
+  "analytics": {
+    "monthlyRevenue": [125000, 148000, 139500, 176200, 192800, 215400],
+    "activeUsers": 4832,
+    "conversionRate": 7.84,
+    "topProducts": [
+      "Mechanical Keyboard",
+      "USB-C Hub",
+      "Wireless Mouse"
+    ]
+  }
+}

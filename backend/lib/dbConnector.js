@@ -1,4 +1,5 @@
 import knex from 'knex'
+import { MongoClient } from 'mongodb'
 
 /**
  * Test Database Connection
@@ -13,13 +14,23 @@ export async function testDatabaseConnection(config) {
     const { dbType, host, dbName, username, password, filename } = config
     const clientType = normalizeClientType(dbType)
 
-    const knexConfig = buildKnexConfig(clientType, { host, dbName, username, password, filename })
-    client = knex(knexConfig)
-
-    if (clientType === 'sqlite3') {
-      await client.raw('SELECT 1')
+    if (clientType === 'mongodb') {
+      let mongoUrl = host || 'mongodb://localhost:27017'
+      if (!mongoUrl.startsWith('mongodb')) {
+          mongoUrl = `mongodb://${username ? username + ':' + password + '@' : ''}${host}`
+      }
+      client = new MongoClient(mongoUrl, { serverSelectionTimeoutMS: 5000 })
+      await client.connect()
+      await client.db(dbName || 'admin').command({ ping: 1 })
     } else {
-      await client.raw('SELECT 1+1 AS result')
+      const knexConfig = buildKnexConfig(clientType, { host, dbName, username, password, filename })
+      client = knex(knexConfig)
+  
+      if (clientType === 'sqlite3') {
+        await client.raw('SELECT 1')
+      } else {
+        await client.raw('SELECT 1+1 AS result')
+      }
     }
 
     const latency = Date.now() - startTime
@@ -35,7 +46,7 @@ export async function testDatabaseConnection(config) {
     }
   } finally {
     if (client) {
-      try { await client.destroy() } catch {}
+      try { if (clientType === 'mongodb') { await client.close() } else { await client.destroy() } } catch {}
     }
   }
 }
@@ -49,22 +60,34 @@ export async function extractDatabaseSchema(config) {
   const { dbType, host, dbName, username, password, filename } = config
   const clientType = normalizeClientType(dbType)
 
-  const knexConfig = buildKnexConfig(clientType, { host, dbName, username, password, filename })
-  const db = knex(knexConfig)
+  let db = null
+  let mongoClient = null
 
   try {
     let tables = []
     let relationships = []
 
-    if (clientType === 'pg') {
-      tables = await extractPostgreSQLSchema(db)
-      relationships = await extractPostgreSQLRelationships(db)
-    } else if (clientType === 'mysql2') {
-      tables = await extractMySQLSchema(db, dbName)
-      relationships = await extractMySQLRelationships(db, dbName)
-    } else if (clientType === 'sqlite3') {
-      tables = await extractSQLiteSchema(db)
-      relationships = await extractSQLiteRelationships(db)
+    if (clientType === 'mongodb') {
+      let mongoUrl = host || 'mongodb://localhost:27017'
+      if (!mongoUrl.startsWith('mongodb')) {
+          mongoUrl = `mongodb://${username ? username + ':' + password + '@' : ''}${host}`
+      }
+      mongoClient = new MongoClient(mongoUrl, { serverSelectionTimeoutMS: 5000 })
+      await mongoClient.connect()
+      tables = await extractMongoSchema(mongoClient, dbName)
+    } else {
+      const knexConfig = buildKnexConfig(clientType, { host, dbName, username, password, filename })
+      db = knex(knexConfig)
+      if (clientType === 'pg') {
+        tables = await extractPostgreSQLSchema(db)
+        relationships = await extractPostgreSQLRelationships(db)
+      } else if (clientType === 'mysql2') {
+        tables = await extractMySQLSchema(db, dbName)
+        relationships = await extractMySQLRelationships(db, dbName)
+      } else if (clientType === 'sqlite3') {
+        tables = await extractSQLiteSchema(db)
+        relationships = await extractSQLiteRelationships(db)
+      }
     }
 
     // Calculate aggregated column breakdown
@@ -101,7 +124,7 @@ export async function extractDatabaseSchema(config) {
       relationships
     }
   } finally {
-    try { await db.destroy() } catch {}
+    try { if (db) await db.destroy(); if (mongoClient) await mongoClient.close() } catch {}
   }
 }
 
@@ -114,6 +137,36 @@ export async function extractDatabaseSchema(config) {
 export async function executeDynamicQuery(config, sql) {
   const { dbType, host, dbName, username, password, filename } = config
   const clientType = normalizeClientType(dbType)
+
+  if (clientType === 'mongodb') {
+    let mongoUrl = host || 'mongodb://localhost:27017'
+    if (!mongoUrl.startsWith('mongodb')) {
+        mongoUrl = `mongodb://${username ? username + ':' + password + '@' : ''}${host}`
+    }
+    const mongoClient = new MongoClient(mongoUrl, { serverSelectionTimeoutMS: 5000 })
+    try {
+      await mongoClient.connect()
+      const mdb = mongoClient.db(dbName)
+      
+      // Basic SQL to Mongo translation
+      // Expects: SELECT * FROM collection_name LIMIT 100
+      let collectionName = ''
+      let limit = 100
+      
+      const fromMatch = sql.match(/FROM\s+([a-zA-Z0-9_]+)/i)
+      if (fromMatch) collectionName = fromMatch[1]
+      
+      const limitMatch = sql.match(/LIMIT\s+(\d+)/i)
+      if (limitMatch) limit = parseInt(limitMatch[1], 10)
+      
+      if (collectionName) {
+         return await mdb.collection(collectionName).find().limit(limit).toArray()
+      }
+      return []
+    } finally {
+      await mongoClient.close()
+    }
+  }
 
   const knexConfig = buildKnexConfig(clientType, { host, dbName, username, password, filename })
   const db = knex(knexConfig)
@@ -138,6 +191,7 @@ function normalizeClientType(dbType = '') {
   if (lower.includes('postgres') || lower.includes('pg')) return 'pg'
   if (lower.includes('mysql') || lower.includes('mariadb')) return 'mysql2'
   if (lower.includes('sqlite')) return 'sqlite3'
+  if (lower.includes('mongo')) return 'mongodb'
   return 'pg'
 }
 
@@ -380,4 +434,53 @@ async function extractSQLiteRelationships(db) {
   }
 
   return relationships
+}
+
+
+async function extractMongoSchema(client, dbName) {
+  const db = client.db(dbName)
+  const collections = await db.listCollections().toArray()
+  const tables = []
+
+  for (const coll of collections) {
+    if (coll.type !== 'collection' && coll.type !== undefined) continue
+    
+    const collectionName = coll.name
+    const recordCount = await db.collection(collectionName).countDocuments()
+    const sampleRows = await db.collection(collectionName).find().limit(150).toArray()
+    
+    const columns = []
+    if (sampleRows.length > 0) {
+      const keys = Object.keys(sampleRows[0])
+      keys.forEach(k => {
+        let type = 'VARCHAR'
+        const val = sampleRows[0][k]
+        if (typeof val === 'number') type = 'FLOAT'
+        else if (typeof val === 'boolean') type = 'BOOLEAN'
+        else if (val instanceof Date) type = 'TIMESTAMP'
+        else if (typeof val === 'object') type = 'JSON'
+        
+        columns.push({
+          name: k,
+          type,
+          pk: k === '_id',
+          fk: false,
+          nullable: true,
+          desc: `Field '${k}' in MongoDB collection '${collectionName}'`
+        })
+      })
+    }
+
+    tables.push({
+      name: collectionName,
+      columnsCount: columns.length,
+      records: recordCount,
+      size: `${(recordCount * 0.4 / 1024).toFixed(1)} MB`,
+      description: `MongoDB collection '${collectionName}'`,
+      primaryKey: '_id',
+      columns,
+      sampleRows
+    })
+  }
+  return tables
 }

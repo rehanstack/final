@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Menu, X, Shield, GitBranch, Upload as UploadIcon, LogOut, Database, Sun, Moon } from 'lucide-react'
+import { Menu, X, Shield, GitBranch, Upload as UploadIcon, LogOut, Database, Sun, Moon, Settings, Users } from 'lucide-react'
 import { loadAnalysis, clearAnalysis } from '../lib/analysisState'
+import AiSettingsModal from './AiSettingsModal'
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
   const [hasDb, setHasDb] = useState(false)
   const [theme, setTheme] = useState('dark')
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -67,7 +69,8 @@ export default function Navbar() {
 
   const links = [
     { name: 'Architecture', path: '/architecture', icon: GitBranch },
-    { name: 'Security', path: '/security', icon: Shield }
+    { name: 'Security', path: '/security', icon: Shield },
+    { name: 'Team', path: '/team', icon: Users }
   ]
 
   return (
@@ -82,7 +85,7 @@ export default function Navbar() {
           </Link>
           <div className="hidden sm:flex items-center">
             <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[10px] font-semibold text-gray-400 tracking-wide uppercase">
-              v1.9.4 :- Clusters
+              v1.9.5 :- Clusters
             </span>
           </div>
         </div>
@@ -110,6 +113,13 @@ export default function Navbar() {
 
         {/* Desktop Actions (Right) */}
         <div className="hidden lg:flex items-center gap-3">
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="text-gray-400 hover:text-white p-2 rounded-full hover:bg-white/5 transition-colors"
+            title="AI Gateway Settings"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
           <button
             onClick={toggleTheme}
             className="text-gray-400 hover:text-white p-2 rounded-full hover:bg-white/5 transition-colors"
@@ -142,6 +152,12 @@ export default function Navbar() {
         {/* Mobile Menu Toggle */}
         <div className="flex items-center gap-2 lg:hidden">
           <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="text-gray-400 hover:text-white p-2 rounded-full hover:bg-white/5 transition-colors"
+          >
+            <Settings className="w-5 h-5" />
+          </button>
+          <button
             onClick={toggleTheme}
             className="text-gray-400 hover:text-white p-2 rounded-full hover:bg-white/5 transition-colors"
           >
@@ -159,6 +175,7 @@ export default function Navbar() {
       {/* Mobile Dropdown */}
       {isOpen && (
         <div className="lg:hidden absolute top-[72px] left-4 right-4 glass-dark border border-white/10 rounded-2xl p-4 shadow-card flex flex-col gap-2 backdrop-blur-2xl bg-dark-950/95">
+          {/* ... existing mobile dropdown ... */}
           {hasDb && (
             <div className="pb-3 mb-2 border-b border-white/10 flex flex-col gap-1">
               <p className="text-[10px] uppercase font-bold text-gray-500 tracking-wider mb-1">Active Workspace</p>
@@ -238,6 +255,8 @@ export default function Navbar() {
           </div>
         </div>
       )}
+
+      <AiSettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
     </div>
   )
 }

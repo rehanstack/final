@@ -12,6 +12,19 @@ load_dotenv(env_path)
 
 app = FastAPI(title="DBSense AI Layer API")
 
+from fastapi import Request
+from context import request_gateway_url
+
+@app.middleware("http")
+async def add_gateway_url_to_context(request: Request, call_next):
+    user_url = request.headers.get("x-ai-gateway-url")
+    if user_url:
+        request_gateway_url.set(user_url)
+    response = await call_next(request)
+    return response
+
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -82,7 +95,35 @@ def rag_query(request: QueryRequest):
         if not api_key:
             raise HTTPException(status_code=500, detail="GROQ_API_KEY is not set in the AI Layer environment")
 
-        llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=api_key, temperature=0.2, max_tokens=4000)
+        if os.environ.get("USE_LOCAL_LLM", "false").lower() == "true":
+
+            from langchain_openai import ChatOpenAI
+
+            from context import request_gateway_url
+
+            gateway_url = os.environ.get("CUSTOM_AI_API_URL")
+
+            user_url = request_gateway_url.get()
+
+            if user_url and (user_url.startswith("https://") or user_url.startswith("http://localhost")):
+
+                gateway_url = user_url
+
+            llm = ChatOpenAI(
+
+                base_url=gateway_url,
+
+                api_key=os.environ.get("CUSTOM_AI_API_KEY"),
+
+                model="qwen3:8b",
+
+                temperature=0.2, max_tokens=4000
+
+            )
+
+        else:
+
+            llm = ChatGroq(model="qwen/qwen3.6-27b", api_key=api_key, temperature=0.2, max_tokens=4000)
 
         # ── Step 1: Real ChromaDB semantic retrieval ──────────────────────────
         rag_agent = RAGKnowledgeAgent()
@@ -130,7 +171,17 @@ Context:
         messages.append(HumanMessage(content=request.query or "Hello"))
 
         # ── Step 4: LLM synthesis ─────────────────────────────────────────────
+        import time
+        start_time = time.time()
         response = llm.invoke(messages)
+        latency = int((time.time() - start_time) * 1000)
+        import re
+        if hasattr(response, 'content'):
+            response.content = re.sub(r'<think>.*?</think>\s*', '', response.content, flags=re.DOTALL)
+
+        provider = "GROQ" if os.environ.get("USE_LOCAL_LLM", "false").lower() != "true" else "OLLAMA (via Gateway)"
+        model_name = "qwen/qwen3.6-27b" if provider == "GROQ" else "qwen3:8b"
+        print(f"\n[AI PROVIDER] {provider}\n[MODEL] {model_name}\n[STATUS] SUCCESS\n[LATENCY] {latency} ms\n")
 
         return {
             "success": True,
@@ -155,7 +206,35 @@ def chat(request: ChatRequest):
         if not api_key:
             raise HTTPException(status_code=500, detail="GROQ_API_KEY is not set in the AI Layer environment")
 
-        llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=api_key, temperature=0.3, max_tokens=4000)
+        if os.environ.get("USE_LOCAL_LLM", "false").lower() == "true":
+
+            from langchain_openai import ChatOpenAI
+
+            from context import request_gateway_url
+
+            gateway_url = os.environ.get("CUSTOM_AI_API_URL")
+
+            user_url = request_gateway_url.get()
+
+            if user_url and (user_url.startswith("https://") or user_url.startswith("http://localhost")):
+
+                gateway_url = user_url
+
+            llm = ChatOpenAI(
+
+                base_url=gateway_url,
+
+                api_key=os.environ.get("CUSTOM_AI_API_KEY"),
+
+                model="qwen3:8b",
+
+                temperature=0.3, max_tokens=4000
+
+            )
+
+        else:
+
+            llm = ChatGroq(model="qwen/qwen3.6-27b", api_key=api_key, temperature=0.3, max_tokens=4000)
 
         lc_messages = []
         for msg in request.messages:
@@ -169,7 +248,23 @@ def chat(request: ChatRequest):
         if not lc_messages:
             raise HTTPException(status_code=400, detail="No messages provided")
 
+        import time
+
+        start_time = time.time()
+
         response = llm.invoke(lc_messages)
+
+        latency = int((time.time() - start_time) * 1000)
+        import re
+        if hasattr(response, 'content'):
+            response.content = re.sub(r'<think>.*?</think>\s*', '', response.content, flags=re.DOTALL)
+
+
+        provider = "GROQ" if os.environ.get("USE_LOCAL_LLM", "false").lower() != "true" else "OLLAMA (via Gateway)"
+
+        model_name = "qwen/qwen3.6-27b" if provider == "GROQ" else "qwen3:8b"
+
+        print(f"\n[AI PROVIDER] {provider}\n[MODEL] {model_name}\n[STATUS] SUCCESS\n[LATENCY] {latency} ms\n")
         return {
             "success": True,
             "response": response.content,

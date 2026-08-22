@@ -141,7 +141,21 @@ async def run_clustering(req: ClusterRequest):
 
             api_key = os.environ.get("GROQ_API_KEY")
             if api_key:
-                llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=api_key, temperature=0.2)
+                if os.environ.get("USE_LOCAL_LLM", "false").lower() == "true":
+                    from langchain_openai import ChatOpenAI
+                    from context import request_gateway_url
+                    gateway_url = os.environ.get("CUSTOM_AI_API_URL")
+                    user_url = request_gateway_url.get()
+                    if user_url and (user_url.startswith("https://") or user_url.startswith("http://localhost")):
+                        gateway_url = user_url
+                    llm = ChatOpenAI(
+                        base_url=gateway_url,
+                        api_key=os.environ.get("CUSTOM_AI_API_KEY"),
+                        model="qwen3:8b",
+                        temperature=0.2
+                    )
+                else:
+                    llm = ChatGroq(model="qwen/qwen3.6-27b", api_key=api_key, temperature=0.2)
                 
                 prompt = f"""You are an expert Data Scientist. I have clustered some data into {req.n_clusters} clusters using features: {features}.
 Here are the average values for each cluster:
@@ -154,7 +168,20 @@ Respond ONLY with a valid JSON array of objects, strictly in this format:
   ...
 ]
 """
+                import time
+                start_time = time.time()
                 response = llm.invoke([HumanMessage(content=prompt)])
+                latency = int((time.time() - start_time) * 1000)
+
+                import re
+
+                if hasattr(response, 'content'):
+
+                    response.content = re.sub(r'<think>.*?</think>\\s*', '', response.content, flags=re.DOTALL)
+
+                provider = "GROQ" if os.environ.get("USE_LOCAL_LLM", "false").lower() != "true" else "OLLAMA (via Gateway)"
+                model_name = "qwen/qwen3.6-27b" if provider == "GROQ" else "qwen3:8b"
+                print(f"\n[AI PROVIDER] {provider}\n[MODEL] {model_name}\n[STATUS] SUCCESS\n[LATENCY] {latency} ms\n")
                 
                 content = response.content
                 # Remove think block if present
@@ -211,7 +238,35 @@ async def get_cluster_suggestions(req: SuggestionRequest):
         if not api_key:
             raise ValueError("GROQ_API_KEY is not configured.")
 
-        llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=api_key, temperature=0.3)
+        if os.environ.get("USE_LOCAL_LLM", "false").lower() == "true":
+
+            from langchain_openai import ChatOpenAI
+
+            from context import request_gateway_url
+
+            gateway_url = os.environ.get("CUSTOM_AI_API_URL")
+
+            user_url = request_gateway_url.get()
+
+            if user_url and (user_url.startswith("https://") or user_url.startswith("http://localhost")):
+
+                gateway_url = user_url
+
+            llm = ChatOpenAI(
+
+                base_url=gateway_url,
+
+                api_key=os.environ.get("CUSTOM_AI_API_KEY"),
+
+                model="qwen3:8b",
+
+                temperature=0.3
+
+            )
+
+        else:
+
+            llm = ChatGroq(model="qwen/qwen3.6-27b", api_key=api_key, temperature=0.3)
         
         prompt = f"""You are an expert Business Intelligence Analyst.
 A user wants to cluster their dataset named '{req.table_name}'.
@@ -233,7 +288,20 @@ Respond ONLY with a valid JSON array of objects, strictly in this format:
   }}
 ]
 """
+        import time
+        start_time = time.time()
         response = llm.invoke([HumanMessage(content=prompt)])
+        latency = int((time.time() - start_time) * 1000)
+
+        import re
+
+        if hasattr(response, 'content'):
+
+            response.content = re.sub(r'<think>.*?</think>\\s*', '', response.content, flags=re.DOTALL)
+
+        provider = "GROQ" if os.environ.get("USE_LOCAL_LLM", "false").lower() != "true" else "OLLAMA (via Gateway)"
+        model_name = "qwen/qwen3.6-27b" if provider == "GROQ" else "qwen3:8b"
+        print(f"\n[AI PROVIDER] {provider}\n[MODEL] {model_name}\n[STATUS] SUCCESS\n[LATENCY] {latency} ms\n")
         
         content = response.content
         # Remove think block if present

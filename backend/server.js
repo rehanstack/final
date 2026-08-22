@@ -4,6 +4,7 @@ import multer from 'multer'
 import Papa from 'papaparse'
 import dotenv from 'dotenv'
 import Groq from 'groq-sdk'
+import OpenAI from 'openai'
 import axios from 'axios'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -15,10 +16,109 @@ const __dirname = path.dirname(__filename)
 
 dotenv.config({ path: path.join(__dirname, '../.env') })
 
+// Helper to forward the user-configured AI gateway URL from frontend to Python
+const getAiForwardHeaders = (req) => {
+  if (req?.headers?.['x-ai-gateway-url']) {
+    return { headers: { 'x-ai-gateway-url': req.headers['x-ai-gateway-url'] } }
+  }
+  return {}
+}
+
 // Initialize Groq LLM Client
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY || ''
 })
+
+// Provider Selection logic for Phase 4 Safe Dual-LLM
+const getLLMClient = (req) => {
+  if (process.env.USE_LOCAL_LLM === 'true') {
+    let gatewayUrl = process.env.CUSTOM_AI_API_URL;
+    
+    const userUrl = req?.headers?.['x-ai-gateway-url'];
+    if (userUrl) {
+      try {
+        const urlObj = new URL(userUrl);
+        if (urlObj.protocol === 'https:' || (urlObj.protocol === 'http:' && urlObj.hostname === 'localhost')) {
+          gatewayUrl = userUrl;
+        }
+      } catch (e) {
+      }
+    }
+
+    const openai = new OpenAI({
+      baseURL: gatewayUrl,
+      apiKey: process.env.CUSTOM_AI_API_KEY || ''
+    });
+    
+    return {
+      chat: {
+        completions: {
+          create: async (params) => {
+            const start = Date.now();
+            const newParams = { ...params, model: 'qwen3:8b' };
+            try {
+                const result = await openai.chat.completions.create(newParams);
+                if (result && result.choices && result.choices[0] && result.choices[0].message && result.choices[0].message.content) {
+                    result.choices[0].message.content = result.choices[0].message.content.replace(/<think>[\s\S]*?<\/think>\s*/g, '');
+                }
+                const latency = Date.now() - start;
+                console.log(`
+[AI PROVIDER] OLLAMA (via Gateway)
+[MODEL] qwen3:8b
+[STATUS] SUCCESS
+[LATENCY] ${latency} ms
+`);
+                return result;
+            } catch(e) {
+                const latency = Date.now() - start;
+                console.log(`
+[AI PROVIDER] OLLAMA (via Gateway)
+[MODEL] qwen3:8b
+[STATUS] ERROR (${e.message})
+[LATENCY] ${latency} ms
+`);
+                throw e;
+            }
+          }
+        }
+      }
+    };
+  }
+  
+  return {
+    chat: {
+      completions: {
+        create: async (params) => {
+          const start = Date.now();
+          const targetModel = params.model || 'openai/gpt-oss-20b';
+          try {
+              const result = await groq.chat.completions.create(params);
+              if (result && result.choices && result.choices[0] && result.choices[0].message && result.choices[0].message.content) {
+                  result.choices[0].message.content = result.choices[0].message.content.replace(/<think>[\s\S]*?<\/think>\s*/g, '');
+              }
+              const latency = Date.now() - start;
+              console.log(`
+[AI PROVIDER] GROQ
+[MODEL] ${targetModel}
+[STATUS] SUCCESS
+[LATENCY] ${latency} ms
+`);
+              return result;
+          } catch(e) {
+              const latency = Date.now() - start;
+              console.log(`
+[AI PROVIDER] GROQ
+[MODEL] ${targetModel}
+[STATUS] ERROR (${e.message})
+[LATENCY] ${latency} ms
+`);
+              throw e;
+          }
+        }
+      }
+    }
+  };
+}
 
 import sqlite3 from 'sqlite3'
 
@@ -198,9 +298,9 @@ app.post('/api/upload-csv', upload.single('file'), (req, res) => {
         `;
 
         try {
-          const chatCompletion = await groq.chat.completions.create({
+          const chatCompletion = await getLLMClient(req).chat.completions.create({
             messages: [{ role: 'user', content: systemPrompt }],
-            model: 'llama-3.1-8b-instant',
+            model: 'openai/gpt-oss-20b',
             temperature: 0.0, // Fully deterministic (no randomness)
             response_format: { type: "json_object" }
           });
@@ -468,7 +568,8 @@ app.post('/api/analyze-stream', async (req, res) => {
     const aiLayerUrl = process.env.AI_LAYER_URL || 'http://127.0.0.1:8000'
     const response = await axios.post(`${aiLayerUrl}/api/analyze-stream`, req.body, {
       responseType: 'stream',
-      timeout: 300000 // 5 minutes timeout for the stream
+      timeout: 300000, // 5 minutes timeout for the stream
+      ...getAiForwardHeaders(req)
     })
 
     // Listen to the data events and write explicitly to ensure flushing
@@ -491,6 +592,104 @@ app.post('/api/analyze-stream', async (req, res) => {
 })
 
 // SQL Dump File Upload Endpoint
+
+// JSON Upload Endpoint
+app.post('/api/upload-json', upload.single('file'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No JSON file uploaded' })
+  }
+  try {
+    const jsonContent = req.file.buffer.toString('utf8')
+    const parsedData = JSON.parse(jsonContent)
+    
+    let dataArray = []
+    if (Array.isArray(parsedData)) {
+      dataArray = parsedData
+    } else if (typeof parsedData === 'object' && parsedData !== null) {
+      // Find the first array property
+      const arrayProp = Object.values(parsedData).find(v => Array.isArray(v))
+      if (arrayProp) {
+        dataArray = arrayProp
+      } else {
+        dataArray = [parsedData] // fallback to single object array
+      }
+    }
+
+    if (dataArray.length === 0) {
+      return res.status(400).json({ error: 'JSON does not contain any records' })
+    }
+
+    const fields = Object.keys(dataArray[0])
+    const columns = fields.map((field, idx) => {
+      let type = 'VARCHAR'
+      const sampleVal = dataArray[0][field]
+      if (sampleVal !== null && sampleVal !== undefined && sampleVal !== '') {
+        if (typeof sampleVal === 'number') {
+          type = Number.isInteger(sampleVal) ? 'INTEGER' : 'FLOAT'
+        } else if (typeof sampleVal === 'boolean') {
+          type = 'BOOLEAN'
+        }
+      }
+      return {
+        name: field,
+        type: type,
+        pk: idx === 0,
+        fk: false,
+        nullable: true,
+        desc: `Column '${field}' extracted from JSON upload`
+      }
+    })
+
+    const tableName = req.file.originalname.replace(/\.[^/.]+$/, "").replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()
+
+    // SQLite data ingestion
+    await dbRun('BEGIN TRANSACTION');
+    await dbRun(`DROP TABLE IF EXISTS "${tableName}"`);
+    
+    const colDefs = columns.map(c => `"${c.name}" ${c.type}`).join(', ');
+    await dbRun(`CREATE TABLE "${tableName}" (${colDefs})`);
+
+    const placeholders = columns.map(() => '?').join(', ');
+    const insertSql = `INSERT INTO "${tableName}" VALUES (${placeholders})`;
+
+    for (const row of dataArray) {
+      const values = columns.map(c => {
+        const val = row[c.name]
+        if (typeof val === 'object') return JSON.stringify(val)
+        return val
+      });
+      await dbRunParam(insertSql, values);
+    }
+    await dbRun('COMMIT');
+
+    const result = {
+      name: req.file.originalname + ' (Uploaded)',
+      tablesCount: 1,
+      columnsCount: columns.length,
+      relationshipsCount: 0,
+      totalRecords: dataArray.length,
+      totalSize: `${(req.file.size / 1024).toFixed(1)} KB`,
+      qualityScore: 98,
+      tables: [{
+        name: tableName,
+        size: `${(req.file.size / 1024).toFixed(1)} KB`,
+        records: dataArray.length,
+        quality: 98,
+        primaryKey: columns[0]?.name || 'id',
+        columns,
+        sampleRows: dataArray.slice(0, 150)
+      }],
+      sampleRows: dataArray.slice(0, 150)
+    }
+
+    return res.json(result)
+  } catch (err) {
+    console.error('Error processing JSON upload:', err);
+    try { await dbRun('ROLLBACK'); } catch (e) {}
+    return res.status(500).json({ error: 'Failed to process JSON file' })
+  }
+})
+
 app.post('/api/upload-sql', upload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No SQL file uploaded' })
@@ -573,9 +772,9 @@ app.post('/api/upload-sql', upload.single('file'), async (req, res) => {
       - Use "line" or "area" for date/year columns.`
 
       try {
-        const completion = await groq.chat.completions.create({
+        const completion = await getLLMClient(req).chat.completions.create({
           messages: [{ role: 'user', content: systemPrompt }],
-          model: 'llama-3.1-8b-instant',
+          model: 'openai/gpt-oss-20b',
           temperature: 0.0,
           response_format: { type: 'json_object' }
         })
@@ -770,9 +969,9 @@ User Question: ${query}`;
 
     while (retries <= maxRetries) {
       try {
-        const sqlCompletion = await groq.chat.completions.create({
+        const sqlCompletion = await getLLMClient(req).chat.completions.create({
           messages: [{ role: 'user', content: currentSqlPrompt }],
-          model: "llama-3.1-8b-instant",
+          model: "openai/gpt-oss-20b",
           temperature: 0.1
         });
         sqlQuery = sqlCompletion.choices[0]?.message?.content?.trim() || "";
@@ -881,7 +1080,7 @@ If the query results are provided, formulate a natural language answer based on 
 
     let answer = "No response generated.";
     try {
-      const chatCompletion = await groq.chat.completions.create({
+      const chatCompletion = await getLLMClient(req).chat.completions.create({
         messages: messages,
         model: "qwen/qwen3.6-27b",
         temperature: 0.2,
@@ -910,7 +1109,7 @@ If the query results are provided, formulate a natural language answer based on 
     // Fallback to AI layer if local Groq fails (e.g. no key)
     try {
       const aiLayerUrl = process.env.AI_LAYER_URL || 'http://127.0.0.1:8000'
-      const response = await axios.post(`${aiLayerUrl}/api/rag-query`, req.body)
+      const response = await axios.post(`${aiLayerUrl}/api/rag-query`, req.body, getAiForwardHeaders(req))
       return res.json(response.data)
     } catch (aiErr) {
       return res.status(500).json({ error: err.message || 'Failed to process RAG query with Groq and AI Layer' })
@@ -922,7 +1121,7 @@ If the query results are provided, formulate a natural language answer based on 
 app.post('/api/chat', async (req, res) => {
   try {
     const aiLayerUrl = process.env.AI_LAYER_URL || 'http://127.0.0.1:8000'
-    const response = await axios.post(`${aiLayerUrl}/api/chat`, req.body)
+    const response = await axios.post(`${aiLayerUrl}/api/chat`, req.body, getAiForwardHeaders(req))
     return res.json(response.data)
   } catch (error) {
     console.error('AI Layer Chat Error:', error)
@@ -935,7 +1134,10 @@ app.post('/api/ml/:action', async (req, res) => {
   try {
     const { action } = req.params
     const aiLayerUrl = process.env.AI_LAYER_URL || 'http://127.0.0.1:8000'
-    const response = await axios.post(`${aiLayerUrl}/api/ml/${action}`, req.body, { timeout: 60000 })
+    const response = await axios.post(`${aiLayerUrl}/api/ml/${action}`, req.body, { 
+      timeout: 60000,
+      ...getAiForwardHeaders(req)
+    })
     return res.json(response.data)
   } catch (error) {
     const detail = error.response?.data?.detail || error.message || 'Failed to process ML request with AI Layer'
@@ -1023,9 +1225,9 @@ app.post('/api/generate-chart', async (req, res) => {
       }`
 
       try {
-        const chatCompletion = await groq.chat.completions.create({
+        const chatCompletion = await getLLMClient(req).chat.completions.create({
           messages: [{ role: 'user', content: systemPrompt }],
-          model: 'llama-3.1-8b-instant',
+          model: 'openai/gpt-oss-20b',
           temperature: 0.1,
           response_format: { type: "json_object" }
         })

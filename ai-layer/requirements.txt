@@ -13,3 +13,4 @@ python-dotenv
 langgraph
 pandas
 scikit-learn
+langchain-openai

@@ -15,6 +15,7 @@ import RAGKnowledge from './pages/RAGKnowledge'
 import Clustering from './pages/Clustering'
 import Architecture from './pages/Architecture'
 import Security from './pages/Security'
+import Team from './pages/Team'
 import { AnimatePresence } from 'framer-motion'
 import { ServerStatusProvider } from './context/ServerStatusContext'
 import DebugMenu from './components/DebugMenu'
@@ -34,6 +35,7 @@ export default function App() {
               <Route path="/processing" element={<Processing />} />
               <Route path="/architecture" element={<Architecture />} />
               <Route path="/security" element={<Security />} />
+              <Route path="/team" element={<Team />} />
 
               {/* Dashboard Redirect */}
               <Route path="/dashboard" element={<Navigate to="/business-intel" replace />} />

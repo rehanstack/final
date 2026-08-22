@@ -20,7 +20,21 @@ class ReasoningAgent:
         
         api_key = os.environ.get("GROQ_API_KEY")
         try:
-            self.llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=api_key, temperature=0.3, max_tokens=4000)
+            if os.environ.get("USE_LOCAL_LLM", "false").lower() == "true":
+                from langchain_openai import ChatOpenAI
+                from context import request_gateway_url
+                gateway_url = os.environ.get("CUSTOM_AI_API_URL")
+                user_url = request_gateway_url.get()
+                if user_url and (user_url.startswith("https://") or user_url.startswith("http://localhost")):
+                    gateway_url = user_url
+                self.llm = ChatOpenAI(
+                    base_url=gateway_url,
+                    api_key=os.environ.get("CUSTOM_AI_API_KEY"),
+                    model="qwen3:8b",
+                    temperature=0.3, max_tokens=4000
+                )
+            else:
+                self.llm = ChatGroq(model="qwen/qwen3.6-27b", api_key=api_key, temperature=0.3, max_tokens=4000)
             print("ReasoningAgent initialized with Llama-3.3-70b.")
         except Exception:
             self.llm = None
@@ -79,7 +93,18 @@ class ReasoningAgent:
             }}
             """
             
+            import time
+            start_time = time.time()
             msg = self.llm.invoke([HumanMessage(content=prompt)])
+            latency = int((time.time() - start_time) * 1000)
+            
+            import re
+            if hasattr(msg, 'content'):
+                msg.content = re.sub(r'<think>.*?</think>\s*', '', msg.content, flags=re.DOTALL)
+                
+            provider = "GROQ" if os.environ.get("USE_LOCAL_LLM", "false").lower() != "true" else "OLLAMA (via Gateway)"
+            model_name = "qwen/qwen3.6-27b" if provider == "GROQ" else "qwen3:8b"
+            print(f"\n[AI PROVIDER] {provider}\n[MODEL] {model_name}\n[STATUS] SUCCESS\n[LATENCY] {latency} ms\n")
             content = msg.content
             if "```json" in content:
                 content = content.split("```json")[1].split("```")[0].strip()

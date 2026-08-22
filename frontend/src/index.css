@@ -150,7 +150,7 @@
   }
 
   .card-glow {
-    @apply relative overflow-hidden group;
+    @apply relative overflow-hidden;
   }
 
   .card-glow::before {
