@@ -6,6 +6,10 @@
   [![FastAPI](https://img.shields.io/badge/FastAPI-0.104.1-009688.svg)](https://fastapi.tiangolo.com/)
   [![LangGraph](https://img.shields.io/badge/LangGraph-AI-orange.svg)](https://python.langchain.com/)
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+  <br/>
+  
+  ### [✨ View Live Demo ✨](https://dbsense-ai-demo.example.com)
 </div>
 
 <br/>
@@ -18,6 +22,7 @@ Unlike traditional BI tools that require manual dashboard configuration, DBSense
 
 ## 📑 Table of Contents
 - [✨ Core Features](#-core-features)
+- [📸 Visuals & Screenshots](#-visuals--screenshots)
 - [🏛️ System Architecture](#️-system-architecture)
 - [🧰 Technology Stack](#-technology-stack)
 - [🤖 The AI Agent Workflow](#-the-ai-agent-workflow)
@@ -35,6 +40,25 @@ Unlike traditional BI tools that require manual dashboard configuration, DBSense
 *   **Machine Learning Clustering:** Automatically clusters numerical business data using **K-Means** and performs dimensionality reduction using **PCA** (via `scikit-learn`). It then feeds the clustered centroids back to the LLM to automatically generate human-readable business profiles (e.g., "Premium High-Spend Customers").
 *   **Auto-Schema & Relationship Discovery:** Automatically connects to your database, extracts all tables, columns, and foreign keys, and generates visual Entity-Relationship (ER) diagrams using React Flow and Mermaid.js.
 *   **Dual LLM Engine Support:** Seamlessly switch between lightning-fast cloud inference via **Groq (LLaMA 3)** or local, privacy-first inference via **Ollama**.
+
+---
+
+## 📸 Visuals & Screenshots
+
+Here is a glimpse into the DBSense AI platform and its underlying architecture:
+
+| System Architecture | LangGraph Workflow |
+| :---: | :---: |
+| <img src="./architecture.png" alt="Architecture" width="400"/> | <img src="./langgraph_workflow.png" alt="LangGraph Workflow" width="400"/> |
+
+| RAG Chat Interface | ML Data Clustering |
+| :---: | :---: |
+| <img src="./rag_chat.png" alt="RAG Chat" width="400"/> | <img src="./ml_clustering.png" alt="ML Clustering" width="400"/> |
+
+<div align="center">
+  <b>Data Ingestion Pipeline</b><br/>
+  <img src="./data_ingestion.png" alt="Data Ingestion" width="600"/>
+</div>
 
 ---
 
