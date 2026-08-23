@@ -25,7 +25,11 @@ function isValidApiResponse(response) {
     return false;
   }
   
-  // Accept JSON responses < 500
+  // Accept JSON responses < 500 or 500 errors with JSON details
+  if (response.status >= 500 && response.headers && response.headers['content-type'] && response.headers['content-type'].includes('application/json')) {
+    return true;
+  }
+
   return response.status < 500;
 }
 

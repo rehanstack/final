@@ -322,7 +322,7 @@ router.post('/api/ml/:action', async (req, res) => {
     return res.json(response.data)
   } catch (error) {
     const detail = error.response?.data?.detail || error.message || 'Failed to process ML request with AI Layer'
-    console.error(`ML Layer Error (${req.params.action}):`, detail)
+    console.error(`ML Layer Error (${req.params.action}):`, detail, error.code, error.cause)
     res.status(500).json({ error: detail })
   }
 })

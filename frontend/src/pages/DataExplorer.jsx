@@ -237,10 +237,6 @@ export default function DataExplorer() {
               <strong className="text-white">{displayedLabel}</strong>
             </p>
           </div>
-          <button onClick={handleExportCSV}
-            className="button-primary py-3 px-6 text-sm font-semibold flex items-center gap-2 whitespace-nowrap hover:shadow-glow self-start">
-            <Download className="w-4 h-4" /> Export Table as CSV
-          </button>
         </div>
 
         {isSql && allTables.length > 1 && (

@@ -72,13 +72,13 @@ router.post('/api/upload-csv', upload.single('file'), (req, res) => {
 
       // --- SQLITE DATA INGESTION ---
       try {
-        await dbRun(`DROP TABLE IF EXISTS ${tableName}`);
+        await dbRun(`DROP TABLE IF EXISTS "${tableName}"`);
         const colDefs = columns.map(c => `"${c.name}" ${c.type}`).join(', ')
-        await dbRun(`CREATE TABLE ${tableName} (${colDefs})`);
+        await dbRun(`CREATE TABLE "${tableName}" (${colDefs})`);
         
         // Bulk insert
         const placeholders = columns.map(() => '?').join(',')
-        const insertQuery = `INSERT INTO ${tableName} VALUES (${placeholders})`
+        const insertQuery = `INSERT INTO "${tableName}" VALUES (${placeholders})`
         
         // Using a transaction for speed
         await dbRun('BEGIN TRANSACTION');

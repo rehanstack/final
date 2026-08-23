@@ -167,15 +167,6 @@ export default function QualityMetrics() {
             <h1 className="text-4xl font-bold text-white mb-2">Data Quality & Health Metrics</h1>
             <p className="text-gray-400 text-sm">Visual health analytics and problem location diagnostics for <strong className="text-white">{customTable?.name || currentDatasetKey}</strong></p>
           </div>
-
-          <button
-            onClick={handleAutoFix}
-            disabled={isFixing || issueDiagnostics.totalCount === 0}
-            className="button-primary py-3 px-6 text-sm font-semibold flex items-center justify-center gap-2 whitespace-nowrap hover:shadow-glow self-start sm:self-auto disabled:opacity-50"
-          >
-            {isFixing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
-            {isFixing ? 'Sanitizing Data...' : 'Auto-Fix All Diagnosed Issues'}
-          </button>
         </div>
 
         {/* Scan Toast Notification */}

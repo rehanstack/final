@@ -257,8 +257,10 @@ async def get_cluster_suggestions(req: SuggestionRequest):
         import re
 
         api_key = os.environ.get("GROQ_API_KEY")
-        if not api_key:
+        if not api_key and os.environ.get("USE_LOCAL_LLM", "false").lower() != "true":
             raise ValueError("GROQ_API_KEY is not configured.")
+
+        import httpx
 
         if os.environ.get("USE_LOCAL_LLM", "false").lower() == "true":
 
@@ -282,13 +284,14 @@ async def get_cluster_suggestions(req: SuggestionRequest):
 
                 model="qwen3:8b",
 
-                temperature=0.3
+                temperature=0.3,
+                http_client=httpx.Client(verify=False)
 
             )
 
         else:
+            llm = ChatGroq(model="qwen/qwen3.6-27b", api_key=api_key, temperature=0.3, http_client=httpx.Client(verify=False))
 
-            llm = ChatGroq(model="qwen/qwen3.6-27b", api_key=api_key, temperature=0.3)
         
         prompt = f"""You are an expert Business Intelligence Analyst.
 A user wants to cluster their dataset named '{req.table_name}'.
@@ -330,22 +333,28 @@ Respond ONLY with a valid JSON array of objects, strictly in this format:
         content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL)
         
         suggestions = None
-        # Try to match markdown code block
-        json_match = re.search(r'```(?:json)?\s*(\[.*?\])\s*```', content, re.DOTALL)
-        if json_match:
-            try:
-                suggestions = json.loads(json_match.group(1))
-            except: pass
-            
-        # Fallback to general array match
-        if not suggestions:
-            json_match = re.search(r'\[\s*\{.*?\}\s*\]', content, re.DOTALL)
+        print("RAW LLM RESPONSE:", response.content)
+
+        import re
+
+        if hasattr(response, 'content'):
+
+            response.content = re.sub(r'<think>.*?</think>\\s*', '', response.content, flags=re.DOTALL)
+
+        suggestions = None
+        # Try to parse JSON from the response
+        try:
+            suggestions = json.loads(response.content)
+        except json.JSONDecodeError:
+            # Fallback regex extraction if it has markdown ticks
+            json_match = re.search(r'\[\s*\{.*?\}\s*\]', response.content, re.DOTALL)
             if json_match:
                 try:
                     suggestions = json.loads(json_match.group(0))
                 except: pass
                 
         if not suggestions:
+            print("Failed to parse, falling back...")
             raise ValueError("Failed to parse LLM response into JSON.")
             
         return {

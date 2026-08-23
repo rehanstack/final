@@ -470,19 +470,6 @@ export default function BusinessIntel() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            {hasDynamic && (
-            <button onClick={handleResetCharts} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-gray-300 border border-white/15 hover:border-red-400/40 hover:text-red-400 transition-all bg-dark-800/60">
-                <RefreshCw className="w-3.5 h-3.5" /> Reset Charts
-              </button>
-            )}
-            {(hasDynamic || autoCharts.length > 0) && (
-              <div className="flex items-center gap-2 px-4 py-2 rounded-full glass border border-primary/30">
-                <Sparkles className="w-4 h-4 text-primary" />
-                <span className="text-sm font-semibold gradient-text">
-                  {hasDynamic ? 'Custom AI Charts' : 'Auto-Generated'}
-                </span>
-              </div>
-            )}
           </div>
         </motion.div>
 
