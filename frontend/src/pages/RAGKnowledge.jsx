@@ -148,13 +148,13 @@ export default function RAGKnowledge() {
             model: 'llama-3.3-70b-versatile',
             messages: apiMessages,
             temperature: 0.2,
-            max_tokens: 1200
+            max_tokens: 700
           })
         })
 
-        // Automatic fallback on 429 rate limit to ultra-fast llama-3.1-8b-instant
-        if (res.status === 429) {
-          console.warn("Direct Groq hit 429 on 70B, falling back to llama-3.1-8b-instant")
+        // Automatic fallback on 429 rate limit or 400 (OTPM limit) to ultra-fast llama-3.1-8b-instant
+        if (res.status === 429 || res.status === 400) {
+          console.warn("Direct Groq hit limit on 70B, falling back to llama-3.1-8b-instant")
           res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
@@ -162,7 +162,7 @@ export default function RAGKnowledge() {
               model: 'llama-3.1-8b-instant',
               messages: apiMessages,
               temperature: 0.2,
-              max_tokens: 1000
+              max_tokens: 500
             })
           })
         }

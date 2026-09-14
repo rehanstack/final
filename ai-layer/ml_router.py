@@ -177,7 +177,7 @@ async def run_clustering(req: ClusterRequest):
                         temperature=0.2
                     )
                 else:
-                    llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=api_key, temperature=0.2, max_tokens=1000)
+                    llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=api_key, temperature=0.2, max_tokens=700)
                 
                 prompt = f"""You are an expert Data Scientist. I have clustered some data into {req.n_clusters} clusters using features: {features}.
 Here are the average values for each cluster:
@@ -196,9 +196,11 @@ Respond ONLY with a valid JSON array of objects, strictly in this format:
                 try:
                     response = llm.invoke([HumanMessage(content=prompt)])
                 except Exception as invoke_err:
-                    if "429" in str(invoke_err) and os.environ.get("USE_LOCAL_LLM", "false").lower() != "true":
-                        print("\n[AI PROVIDER] Rate limit hit on 70B in ml_router. Falling back to llama-3.1-8b-instant...\n")
-                        fallback_llm = ChatGroq(model="llama-3.1-8b-instant", api_key=api_key, temperature=0.2, max_tokens=800)
+                    err_str = str(invoke_err)
+                    is_limit = any(k in err_str for k in ["429", "tokens per minute", "OTPM", "TPM", "Request too large", "rate_limit_exceeded"])
+                    if is_limit and os.environ.get("USE_LOCAL_LLM", "false").lower() != "true":
+                        print("\n[AI PROVIDER] Rate/Token limit hit in ml_router. Falling back to llama-3.1-8b-instant with 500 max_tokens...\n")
+                        fallback_llm = ChatGroq(model="llama-3.1-8b-instant", api_key=api_key, temperature=0.2, max_tokens=500)
                         response = fallback_llm.invoke([HumanMessage(content=prompt)])
                         actual_model = "llama-3.1-8b-instant"
                     else:
@@ -301,7 +303,7 @@ async def get_cluster_suggestions(req: SuggestionRequest):
             )
 
         else:
-            llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=api_key, temperature=0.3, max_tokens=1000, http_client=httpx.Client(verify=False))
+            llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=api_key, temperature=0.3, max_tokens=700, http_client=httpx.Client(verify=False))
 
         
         prompt = f"""You are an expert Business Intelligence Analyst.
@@ -330,9 +332,11 @@ Respond ONLY with a valid JSON array of objects, strictly in this format:
         try:
             response = llm.invoke([HumanMessage(content=prompt)])
         except Exception as invoke_err:
-            if "429" in str(invoke_err) and os.environ.get("USE_LOCAL_LLM", "false").lower() != "true":
-                print("\n[AI PROVIDER] Rate limit hit on 70B in ml_router suggest. Falling back to llama-3.1-8b-instant...\n")
-                fallback_llm = ChatGroq(model="llama-3.1-8b-instant", api_key=api_key, temperature=0.3, max_tokens=800, http_client=httpx.Client(verify=False))
+            err_str = str(invoke_err)
+            is_limit = any(k in err_str for k in ["429", "tokens per minute", "OTPM", "TPM", "Request too large", "rate_limit_exceeded"])
+            if is_limit and os.environ.get("USE_LOCAL_LLM", "false").lower() != "true":
+                print("\n[AI PROVIDER] Rate/Token limit hit in ml_router suggest. Falling back to llama-3.1-8b-instant with 500 max_tokens...\n")
+                fallback_llm = ChatGroq(model="llama-3.1-8b-instant", api_key=api_key, temperature=0.3, max_tokens=500, http_client=httpx.Client(verify=False))
                 response = fallback_llm.invoke([HumanMessage(content=prompt)])
                 actual_model = "llama-3.1-8b-instant"
             else:

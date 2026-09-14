@@ -68,11 +68,11 @@ export const getLLMClient = (req) => {
             targetModel = 'llama-3.3-70b-versatile';
           }
 
-          // Cap max_tokens to prevent reserving entire TPM quota on Groq free tier
+          // Cap max_tokens to 750 to strictly stay below Groq's 1000 OTPM (Output Tokens Per Minute) free-tier limit
           const safeParams = {
             ...params,
             model: targetModel,
-            max_tokens: Math.min(params.max_tokens || 1200, 1200)
+            max_tokens: Math.min(params.max_tokens || 700, 750)
           };
 
           try {
@@ -84,15 +84,27 @@ export const getLLMClient = (req) => {
               console.log(`\n[AI PROVIDER] GROQ\n[MODEL] ${safeParams.model}\n[STATUS] SUCCESS\n[LATENCY] ${latency} ms\n`);
               return result;
           } catch(e) {
-              const isRateLimit = e.status === 429 || (e.message && e.message.includes('429'));
-              // Automatic Model Fallback on 429 Rate Limit
-              if (isRateLimit && safeParams.model !== 'llama-3.1-8b-instant') {
-                console.warn(`\n[AI PROVIDER] GROQ Rate Limit (429) hit on ${safeParams.model}. Automatically falling back to high-throughput llama-3.1-8b-instant...\n`);
+              const errorMsg = String(e.message || '');
+              const isRateOrTokenLimit = 
+                e.status === 429 ||
+                e.status === 400 ||
+                e.status === 413 ||
+                e.code === 'rate_limit_exceeded' ||
+                errorMsg.includes('429') ||
+                errorMsg.includes('tokens per minute') ||
+                errorMsg.includes('OTPM') ||
+                errorMsg.includes('TPM') ||
+                errorMsg.includes('Request too large') ||
+                errorMsg.includes('rate_limit_exceeded');
+
+              // Automatic Model Fallback on rate or token limits
+              if (isRateOrTokenLimit && safeParams.model !== 'llama-3.1-8b-instant') {
+                console.warn(`\n[AI PROVIDER] GROQ Rate/Token Limit hit on ${safeParams.model} (${errorMsg}). Automatically falling back to high-throughput llama-3.1-8b-instant with 500 max_tokens...\n`);
                 try {
                   const fallbackParams = {
                     ...safeParams,
                     model: 'llama-3.1-8b-instant',
-                    max_tokens: Math.min(safeParams.max_tokens || 1000, 1000)
+                    max_tokens: Math.min(safeParams.max_tokens || 500, 500)
                   };
                   const fallbackResult = await groq.chat.completions.create(fallbackParams);
                   if (fallbackResult?.choices?.[0]?.message?.content) {

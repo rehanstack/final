@@ -264,15 +264,27 @@ If the query results are provided, formulate a natural language answer based on 
         messages: messages,
         model: "llama-3.3-70b-versatile",
         temperature: 0.2,
-        max_tokens: 1200
+        max_tokens: 700
       });
       answer = chatCompletion.choices[0]?.message?.content || answer;
     } catch (e) {
       console.error("Synthesis Agent Error:", e.message || e);
-      if (e.status === 429 || (e.message && e.message.includes('429'))) {
-        answer = "I apologize, but we have temporarily hit the Groq API rate limit (429 Too Many Requests) across all fallback models. Please wait a few moments for the token quota to reset, or provide a Groq key from another account.";
+      const errorMsg = String(e.message || '');
+      const isRateOrTokenLimit = 
+        e.status === 429 ||
+        e.status === 400 ||
+        e.status === 413 ||
+        e.code === 'rate_limit_exceeded' ||
+        errorMsg.includes('429') ||
+        errorMsg.includes('tokens per minute') ||
+        errorMsg.includes('OTPM') ||
+        errorMsg.includes('TPM') ||
+        errorMsg.includes('Request too large');
+
+      if (isRateOrTokenLimit) {
+        answer = "I apologize, but we have reached Groq's Output Token Limit (OTPM Limit 1,000 tokens/min). Please wait ~30 seconds for the window to reset, or provide a Groq key with a higher tier.";
       } else {
-        answer = "I apologize, but I encountered an error while synthesizing the response. Please try again.";
+        answer = `I apologize, but I encountered an error while synthesizing the response: ${errorMsg}. Please try again.`;
       }
     }
 
@@ -298,15 +310,35 @@ If the query results are provided, formulate a natural language answer based on 
 })
 
 
-// Groq LLM Chat Endpoint (Phase 2 LLM Integration)
+// Groq LLM Chat Endpoint (Phase 2 LLM Integration with Resilient Node Fallback)
 router.post('/api/chat', async (req, res) => {
   try {
     const aiLayerUrl = process.env.AI_LAYER_URL || 'http://127.0.0.1:8000'
-    const response = await axios.post(`${aiLayerUrl}/api/chat`, req.body, getAiForwardHeaders(req))
+    const response = await axios.post(`${aiLayerUrl}/api/chat`, req.body, {
+      timeout: 12000,
+      ...getAiForwardHeaders(req)
+    })
     return res.json(response.data)
   } catch (error) {
-    console.error('AI Layer Chat Error:', error)
-    res.status(500).json({ error: error.response?.data?.detail || 'Failed to process request with AI Layer' })
+    console.warn('AI Layer Chat Error or timeout, executing via resilient Node Groq client:', error.message)
+    try {
+      const messages = req.body.messages || []
+      const chatCompletion = await getLLMClient(req).chat.completions.create({
+        messages: messages,
+        model: "llama-3.3-70b-versatile",
+        temperature: 0.3,
+        max_tokens: 750
+      })
+      const content = chatCompletion.choices[0]?.message?.content || "No response generated."
+      return res.json({
+        success: true,
+        response: content,
+        provider: "Node.js Groq Engine (Resilient Fallback)"
+      })
+    } catch (localErr) {
+      console.error('Local Groq Chat Fallback Error:', localErr.message || localErr)
+      return res.status(500).json({ error: localErr.message || error.response?.data?.detail || 'Failed to process request with AI Layer and Groq' })
+    }
   }
 })
 

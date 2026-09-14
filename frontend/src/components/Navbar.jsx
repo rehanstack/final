@@ -84,7 +84,7 @@ export default function Navbar() {
           </Link>
           <div className="hidden sm:flex items-center">
             <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[10px] font-semibold text-gray-400 tracking-wide uppercase">
-              v2.0.0 :- Resilient RAG
+              v2.0.1 :- Resilient RAG
             </span>
           </div>
         </div>
