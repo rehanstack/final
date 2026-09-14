@@ -98,7 +98,7 @@ router.post('/api/analyze-stream', async (req, res) => {
 // Groq Agentic RAG Endpoint (Text-to-SQL Pipeline)
 router.post('/api/rag-query', async (req, res) => {
   try {
-    if (!process.env.GROQ_API_KEY) {
+    if (!process.env.GROQ_API_KEY && !req.headers?.['x-groq-api-key']) {
       throw new Error("GROQ_API_KEY is missing")
     }
     
@@ -112,8 +112,8 @@ router.post('/api/rag-query', async (req, res) => {
 
     let schemaStr = "No schema provided."
     if (schemaContext && schemaContext.tables && schemaContext.tables.length > 0) {
-      // Extract SCHEMA chunks to provide table context
-      const schemaChunks = schemaContext.tables.filter(t => t.category === 'SCHEMA' || !t.category)
+      // Extract SCHEMA chunks to provide table context, limited to top 10 chunks to avoid TPM limits
+      const schemaChunks = schemaContext.tables.filter(t => t.category === 'SCHEMA' || !t.category).slice(0, 10)
       schemaStr = schemaChunks.map(t => `${t.title || 'Table'}: ${t.content || ''}`).join('\n\n')
     }
 
@@ -150,8 +150,9 @@ User Question: ${query}`;
       try {
         const sqlCompletion = await getLLMClient(req).chat.completions.create({
           messages: [{ role: 'user', content: currentSqlPrompt }],
-          model: "openai/gpt-oss-20b",
-          temperature: 0.1
+          model: "llama-3.3-70b-versatile",
+          temperature: 0.1,
+          max_tokens: 500
         });
         sqlQuery = sqlCompletion.choices[0]?.message?.content?.trim() || "";
         // Strip markdown backticks
@@ -238,7 +239,7 @@ Schema:
 ${schemaStr}
 
 ${sqlQuery ? `Attempted SQL Query: ${sqlQuery}` : ''}
-${dbResult ? `Query Execution Results (JSON): ${JSON.stringify(dbResult).slice(0, 5000)}` : ''}
+${dbResult ? `Query Execution Results (JSON): ${JSON.stringify(dbResult).slice(0, 2500)}` : ''}
 ${executionError ? `Query Error: ${executionError}` : ''}
 
 If the query results are provided, formulate a natural language answer based on them. If there was an error, try to answer based on the schema or acknowledge the limitation.`
@@ -261,15 +262,15 @@ If the query results are provided, formulate a natural language answer based on 
     try {
       const chatCompletion = await getLLMClient(req).chat.completions.create({
         messages: messages,
-        model: "qwen/qwen3.6-27b",
+        model: "llama-3.3-70b-versatile",
         temperature: 0.2,
-        max_tokens: 4000
+        max_tokens: 1200
       });
       answer = chatCompletion.choices[0]?.message?.content || answer;
     } catch (e) {
       console.error("Synthesis Agent Error:", e.message || e);
       if (e.status === 429 || (e.message && e.message.includes('429'))) {
-        answer = "I apologize, but we have temporarily hit the Groq API rate limit (429 Too Many Requests). Please wait a few moments before asking another question.";
+        answer = "I apologize, but we have temporarily hit the Groq API rate limit (429 Too Many Requests) across all fallback models. Please wait a few moments for the token quota to reset, or provide a Groq key from another account.";
       } else {
         answer = "I apologize, but I encountered an error while synthesizing the response. Please try again.";
       }

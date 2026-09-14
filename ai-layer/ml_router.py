@@ -177,7 +177,7 @@ async def run_clustering(req: ClusterRequest):
                         temperature=0.2
                     )
                 else:
-                    llm = ChatGroq(model="qwen/qwen3.6-27b", api_key=api_key, temperature=0.2)
+                    llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=api_key, temperature=0.2, max_tokens=1000)
                 
                 prompt = f"""You are an expert Data Scientist. I have clustered some data into {req.n_clusters} clusters using features: {features}.
 Here are the average values for each cluster:
@@ -192,7 +192,18 @@ Respond ONLY with a valid JSON array of objects, strictly in this format:
 """
                 import time
                 start_time = time.time()
-                response = llm.invoke([HumanMessage(content=prompt)])
+                actual_model = "llama-3.3-70b-versatile"
+                try:
+                    response = llm.invoke([HumanMessage(content=prompt)])
+                except Exception as invoke_err:
+                    if "429" in str(invoke_err) and os.environ.get("USE_LOCAL_LLM", "false").lower() != "true":
+                        print("\n[AI PROVIDER] Rate limit hit on 70B in ml_router. Falling back to llama-3.1-8b-instant...\n")
+                        fallback_llm = ChatGroq(model="llama-3.1-8b-instant", api_key=api_key, temperature=0.2, max_tokens=800)
+                        response = fallback_llm.invoke([HumanMessage(content=prompt)])
+                        actual_model = "llama-3.1-8b-instant"
+                    else:
+                        raise invoke_err
+
                 latency = int((time.time() - start_time) * 1000)
 
                 import re
@@ -202,7 +213,7 @@ Respond ONLY with a valid JSON array of objects, strictly in this format:
                     response.content = re.sub(r'<think>.*?</think>\\s*', '', response.content, flags=re.DOTALL)
 
                 provider = "GROQ" if os.environ.get("USE_LOCAL_LLM", "false").lower() != "true" else "OLLAMA (via Gateway)"
-                model_name = "qwen/qwen3.6-27b" if provider == "GROQ" else "qwen3:8b"
+                model_name = actual_model if provider == "GROQ" else "qwen3:8b"
                 print(f"\n[AI PROVIDER] {provider}\n[MODEL] {model_name}\n[STATUS] SUCCESS\n[LATENCY] {latency} ms\n")
                 
                 content = response.content
@@ -290,7 +301,7 @@ async def get_cluster_suggestions(req: SuggestionRequest):
             )
 
         else:
-            llm = ChatGroq(model="qwen/qwen3.6-27b", api_key=api_key, temperature=0.3, http_client=httpx.Client(verify=False))
+            llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=api_key, temperature=0.3, max_tokens=1000, http_client=httpx.Client(verify=False))
 
         
         prompt = f"""You are an expert Business Intelligence Analyst.
@@ -315,7 +326,18 @@ Respond ONLY with a valid JSON array of objects, strictly in this format:
 """
         import time
         start_time = time.time()
-        response = llm.invoke([HumanMessage(content=prompt)])
+        actual_model = "llama-3.3-70b-versatile"
+        try:
+            response = llm.invoke([HumanMessage(content=prompt)])
+        except Exception as invoke_err:
+            if "429" in str(invoke_err) and os.environ.get("USE_LOCAL_LLM", "false").lower() != "true":
+                print("\n[AI PROVIDER] Rate limit hit on 70B in ml_router suggest. Falling back to llama-3.1-8b-instant...\n")
+                fallback_llm = ChatGroq(model="llama-3.1-8b-instant", api_key=api_key, temperature=0.3, max_tokens=800, http_client=httpx.Client(verify=False))
+                response = fallback_llm.invoke([HumanMessage(content=prompt)])
+                actual_model = "llama-3.1-8b-instant"
+            else:
+                raise invoke_err
+
         latency = int((time.time() - start_time) * 1000)
 
         import re
@@ -325,7 +347,7 @@ Respond ONLY with a valid JSON array of objects, strictly in this format:
             response.content = re.sub(r'<think>.*?</think>\\s*', '', response.content, flags=re.DOTALL)
 
         provider = "GROQ" if os.environ.get("USE_LOCAL_LLM", "false").lower() != "true" else "OLLAMA (via Gateway)"
-        model_name = "qwen/qwen3.6-27b" if provider == "GROQ" else "qwen3:8b"
+        model_name = actual_model if provider == "GROQ" else "qwen3:8b"
         print(f"\n[AI PROVIDER] {provider}\n[MODEL] {model_name}\n[STATUS] SUCCESS\n[LATENCY] {latency} ms\n")
         
         content = response.content

@@ -109,7 +109,7 @@ export default function RAGKnowledge() {
         schemaContext: {
           dataset: currentDatasetKey,
           tablesCount: analysis.customData?.tablesCount || analysis.metrics?.tables || 12,
-          tables: chunksList.slice(0, 30)
+          tables: chunksList.slice(0, 15)
         }
       }, { timeout: 30000 })
 
@@ -130,7 +130,7 @@ export default function RAGKnowledge() {
         const apiKey = import.meta.env.VITE_GROQ_API_KEY || ''
         if (!apiKey) throw new Error("VITE_GROQ_API_KEY is missing from frontend environment")
         
-        const contextStr = chunksList.slice(0, 30).map(c => `${c.title}: ${c.content}`).join('\n\n')
+        const contextStr = chunksList.slice(0, 15).map(c => `${c.title}: ${c.content}`).join('\n\n')
         const systemPrompt = `You are an expert Database Architect and Data Analyst assistant.\nUse the provided Context (which contains database schema details, columns, and sample data) to accurately answer the user's questions about their data.\nBe concise, professional, and do not hallucinate tables or columns not present in the context.\n\nContext:\n${contextStr}`
         
         const apiMessages = [{ role: 'system', content: systemPrompt }]
@@ -141,17 +141,33 @@ export default function RAGKnowledge() {
         })
         apiMessages.push({ role: 'user', content: userQuery })
 
-        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        let res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
           body: JSON.stringify({
-            model: 'qwen/qwen3.6-27b',
+            model: 'llama-3.3-70b-versatile',
             messages: apiMessages,
-            temperature: 0.2
+            temperature: 0.2,
+            max_tokens: 1200
           })
         })
 
-        if (!res.ok) throw new Error("Groq API failed")
+        // Automatic fallback on 429 rate limit to ultra-fast llama-3.1-8b-instant
+        if (res.status === 429) {
+          console.warn("Direct Groq hit 429 on 70B, falling back to llama-3.1-8b-instant")
+          res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+            body: JSON.stringify({
+              model: 'llama-3.1-8b-instant',
+              messages: apiMessages,
+              temperature: 0.2,
+              max_tokens: 1000
+            })
+          })
+        }
+
+        if (!res.ok) throw new Error(`Groq API failed with status ${res.status}`)
         
         const data = await res.json()
         const answer = data.choices[0]?.message?.content || "No response generated."

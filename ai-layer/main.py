@@ -123,8 +123,7 @@ def rag_query(request: QueryRequest):
             )
 
         else:
-
-            llm = ChatGroq(model="qwen/qwen3.6-27b", api_key=api_key, temperature=0.2, max_tokens=4000)
+            llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=api_key, temperature=0.2, max_tokens=1200)
 
         # ── Step 1: Real ChromaDB semantic retrieval ──────────────────────────
         rag_agent = RAGKnowledgeAgent()
@@ -138,12 +137,10 @@ def rag_query(request: QueryRequest):
             )
             context_source = "ChromaDB vector search"
         else:
-            # ChromaDB is empty (not yet indexed) — fall back to schema context in request body
-            schema_context = request.schemaContext or {}
-            fallback_tables = schema_context.get("tables", [])
+            fallback_tables = request.schemaContext.get("tables", [])
             if fallback_tables:
                 context_str = "\n\n".join(
-                    [f"{t.get('title', 'Table')}: {t.get('content', '')}" for t in fallback_tables]
+                    [f"{t.get('title', 'Table')}: {t.get('content', '')}" for t in fallback_tables[:10]]
                 )
                 retrieved_chunks = fallback_tables[:5]  # Return up to 5 fallback chunks to frontend
                 context_source = "request schema context (vector store not yet indexed)"
@@ -171,24 +168,35 @@ Context:
 
         messages.append(HumanMessage(content=request.query or "Hello"))
 
-        # ── Step 4: LLM synthesis ─────────────────────────────────────────────
+        # ── Step 4: LLM synthesis with 429 Fallback ───────────────────────────
         import time
         start_time = time.time()
-        response = llm.invoke(messages)
+        actual_model = "llama-3.3-70b-versatile"
+        try:
+            response = llm.invoke(messages)
+        except Exception as invoke_err:
+            if "429" in str(invoke_err) and os.environ.get("USE_LOCAL_LLM", "false").lower() != "true":
+                print("\n[AI PROVIDER] GROQ Rate Limit (429) on llama-3.3-70b-versatile. Falling back to llama-3.1-8b-instant...\n")
+                fallback_llm = ChatGroq(model="llama-3.1-8b-instant", api_key=api_key, temperature=0.2, max_tokens=1000)
+                response = fallback_llm.invoke(messages)
+                actual_model = "llama-3.1-8b-instant"
+            else:
+                raise invoke_err
+
         latency = int((time.time() - start_time) * 1000)
         import re
         if hasattr(response, 'content'):
             response.content = re.sub(r'<think>.*?</think>\s*', '', response.content, flags=re.DOTALL)
 
         provider = "GROQ" if os.environ.get("USE_LOCAL_LLM", "false").lower() != "true" else "OLLAMA (via Gateway)"
-        model_name = "qwen/qwen3.6-27b" if provider == "GROQ" else "qwen3:8b"
+        model_name = actual_model if provider == "GROQ" else "qwen3:8b"
         print(f"\n[AI PROVIDER] {provider}\n[MODEL] {model_name}\n[STATUS] SUCCESS\n[LATENCY] {latency} ms\n")
 
         return {
             "success": True,
             "answer": response.content,
             "confidence": 98 if retrieved_chunks and context_source.startswith("ChromaDB") else 90,
-            "provider": "FastAPI AI Layer — ChromaDB RAG + llama-3.3-70b",
+            "provider": f"FastAPI AI Layer — ChromaDB RAG + {actual_model}",
             "retrievedChunks": retrieved_chunks,
             "contextSource": context_source,
         }
@@ -234,8 +242,7 @@ def chat(request: ChatRequest):
             )
 
         else:
-
-            llm = ChatGroq(model="qwen/qwen3.6-27b", api_key=api_key, temperature=0.3, max_tokens=4000)
+            llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=api_key, temperature=0.3, max_tokens=1200)
 
         lc_messages = []
         for msg in request.messages:
@@ -250,26 +257,32 @@ def chat(request: ChatRequest):
             raise HTTPException(status_code=400, detail="No messages provided")
 
         import time
-
         start_time = time.time()
-
-        response = llm.invoke(lc_messages)
+        actual_model = "llama-3.3-70b-versatile"
+        try:
+            response = llm.invoke(lc_messages)
+        except Exception as invoke_err:
+            if "429" in str(invoke_err) and os.environ.get("USE_LOCAL_LLM", "false").lower() != "true":
+                print("\n[AI PROVIDER] GROQ Rate Limit (429) on llama-3.3-70b-versatile in /api/chat. Falling back to llama-3.1-8b-instant...\n")
+                fallback_llm = ChatGroq(model="llama-3.1-8b-instant", api_key=api_key, temperature=0.3, max_tokens=1000)
+                response = fallback_llm.invoke(lc_messages)
+                actual_model = "llama-3.1-8b-instant"
+            else:
+                raise invoke_err
 
         latency = int((time.time() - start_time) * 1000)
         import re
         if hasattr(response, 'content'):
             response.content = re.sub(r'<think>.*?</think>\s*', '', response.content, flags=re.DOTALL)
 
-
         provider = "GROQ" if os.environ.get("USE_LOCAL_LLM", "false").lower() != "true" else "OLLAMA (via Gateway)"
-
-        model_name = "qwen/qwen3.6-27b" if provider == "GROQ" else "qwen3:8b"
+        model_name = actual_model if provider == "GROQ" else "qwen3:8b"
 
         print(f"\n[AI PROVIDER] {provider}\n[MODEL] {model_name}\n[STATUS] SUCCESS\n[LATENCY] {latency} ms\n")
         return {
             "success": True,
             "response": response.content,
-            "provider": "llama-3.3-70b",
+            "provider": f"FastAPI AI Layer — {model_name}",
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

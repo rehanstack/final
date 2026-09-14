@@ -34,7 +34,7 @@ class ReasoningAgent:
                     temperature=0.3, max_tokens=4000
                 )
             else:
-                self.llm = ChatGroq(model="qwen/qwen3.6-27b", api_key=api_key, temperature=0.3, max_tokens=4000)
+                self.llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=api_key, temperature=0.3, max_tokens=1200)
             print("ReasoningAgent initialized with Llama-3.3-70b.")
         except Exception:
             self.llm = None
