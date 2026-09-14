@@ -123,7 +123,7 @@ def rag_query(request: QueryRequest):
             )
 
         else:
-            llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=api_key, temperature=0.2, max_tokens=700)
+            llm = ChatGroq(model="openai/gpt-oss-20b", api_key=api_key, temperature=0.2, max_tokens=700)
 
         # ── Step 1: Real ChromaDB semantic retrieval ──────────────────────────
         rag_agent = RAGKnowledgeAgent()
@@ -168,20 +168,20 @@ Context:
 
         messages.append(HumanMessage(content=request.query or "Hello"))
 
-        # ── Step 4: LLM synthesis with 429 Fallback ───────────────────────────
+        # ── Step 4: LLM synthesis with Fallback ───────────────────────────
         import time
         start_time = time.time()
-        actual_model = "llama-3.3-70b-versatile"
+        actual_model = "openai/gpt-oss-20b"
         try:
             response = llm.invoke(messages)
         except Exception as invoke_err:
             err_str = str(invoke_err)
-            is_limit = any(k in err_str for k in ["429", "tokens per minute", "OTPM", "TPM", "Request too large", "rate_limit_exceeded"])
-            if is_limit and os.environ.get("USE_LOCAL_LLM", "false").lower() != "true":
-                print("\n[AI PROVIDER] GROQ Rate/Token Limit on llama-3.3-70b-versatile. Falling back to llama-3.1-8b-instant with 500 max_tokens...\n")
-                fallback_llm = ChatGroq(model="llama-3.1-8b-instant", api_key=api_key, temperature=0.2, max_tokens=500)
+            is_error = any(k in err_str for k in ["404", "model_not_found", "does not exist", "429", "tokens per minute", "OTPM", "TPM", "Request too large", "rate_limit_exceeded"])
+            if is_error and os.environ.get("USE_LOCAL_LLM", "false").lower() != "true":
+                print("\n[AI PROVIDER] GROQ fallback triggered. Falling back to qwen/qwen3.6-27b with 500 max_tokens...\n")
+                fallback_llm = ChatGroq(model="qwen/qwen3.6-27b", api_key=api_key, temperature=0.2, max_tokens=500)
                 response = fallback_llm.invoke(messages)
-                actual_model = "llama-3.1-8b-instant"
+                actual_model = "qwen/qwen3.6-27b"
             else:
                 raise invoke_err
 
@@ -244,7 +244,7 @@ def chat(request: ChatRequest):
             )
 
         else:
-            llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=api_key, temperature=0.3, max_tokens=750)
+            llm = ChatGroq(model="openai/gpt-oss-20b", api_key=api_key, temperature=0.3, max_tokens=750)
 
         lc_messages = []
         for msg in request.messages:
@@ -260,17 +260,17 @@ def chat(request: ChatRequest):
 
         import time
         start_time = time.time()
-        actual_model = "llama-3.3-70b-versatile"
+        actual_model = "openai/gpt-oss-20b"
         try:
             response = llm.invoke(lc_messages)
         except Exception as invoke_err:
             err_str = str(invoke_err)
-            is_limit = any(k in err_str for k in ["429", "tokens per minute", "OTPM", "TPM", "Request too large", "rate_limit_exceeded"])
-            if is_limit and os.environ.get("USE_LOCAL_LLM", "false").lower() != "true":
-                print("\n[AI PROVIDER] GROQ Rate/Token Limit on llama-3.3-70b-versatile in /api/chat. Falling back to llama-3.1-8b-instant with 500 max_tokens...\n")
-                fallback_llm = ChatGroq(model="llama-3.1-8b-instant", api_key=api_key, temperature=0.3, max_tokens=500)
+            is_error = any(k in err_str for k in ["404", "model_not_found", "does not exist", "429", "tokens per minute", "OTPM", "TPM", "Request too large", "rate_limit_exceeded"])
+            if is_error and os.environ.get("USE_LOCAL_LLM", "false").lower() != "true":
+                print("\n[AI PROVIDER] GROQ fallback triggered in /api/chat. Falling back to qwen/qwen3.6-27b with 500 max_tokens...\n")
+                fallback_llm = ChatGroq(model="qwen/qwen3.6-27b", api_key=api_key, temperature=0.3, max_tokens=500)
                 response = fallback_llm.invoke(lc_messages)
-                actual_model = "llama-3.1-8b-instant"
+                actual_model = "qwen/qwen3.6-27b"
             else:
                 raise invoke_err
 

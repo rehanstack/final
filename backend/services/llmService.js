@@ -62,17 +62,17 @@ export const getLLMClient = (req) => {
     chat: { completions: {
         create: async (params) => {
           const start = Date.now();
-          // Normalize model: upgrade legacy/low-TPM models to llama-3.3-70b-versatile
-          let targetModel = params.model || 'llama-3.3-70b-versatile';
-          if (targetModel === 'openai/gpt-oss-20b' || targetModel === 'qwen/qwen3.6-27b') {
-            targetModel = 'llama-3.3-70b-versatile';
+          // Normalize model: use active Groq model with massive TPM (250,000 TPM limit)
+          let targetModel = params.model || 'openai/gpt-oss-20b';
+          if (targetModel.includes('llama')) {
+            targetModel = 'openai/gpt-oss-20b';
           }
 
-          // Cap max_tokens to 750 to strictly stay below Groq's 1000 OTPM (Output Tokens Per Minute) free-tier limit
+          // Cap max_tokens to 700 to strictly stay within all free-tier OTPM limits
           const safeParams = {
             ...params,
             model: targetModel,
-            max_tokens: Math.min(params.max_tokens || 700, 750)
+            max_tokens: Math.min(params.max_tokens || 700, 700)
           };
 
           try {
@@ -85,25 +85,29 @@ export const getLLMClient = (req) => {
               return result;
           } catch(e) {
               const errorMsg = String(e.message || '');
-              const isRateOrTokenLimit = 
+              const shouldFallback = 
+                e.status === 404 ||
                 e.status === 429 ||
                 e.status === 400 ||
                 e.status === 413 ||
+                e.code === 'model_not_found' ||
                 e.code === 'rate_limit_exceeded' ||
+                errorMsg.includes('does not exist') ||
+                errorMsg.includes('model_not_found') ||
                 errorMsg.includes('429') ||
                 errorMsg.includes('tokens per minute') ||
                 errorMsg.includes('OTPM') ||
                 errorMsg.includes('TPM') ||
-                errorMsg.includes('Request too large') ||
-                errorMsg.includes('rate_limit_exceeded');
+                errorMsg.includes('Request too large');
 
-              // Automatic Model Fallback on rate or token limits
-              if (isRateOrTokenLimit && safeParams.model !== 'llama-3.1-8b-instant') {
-                console.warn(`\n[AI PROVIDER] GROQ Rate/Token Limit hit on ${safeParams.model} (${errorMsg}). Automatically falling back to high-throughput llama-3.1-8b-instant with 500 max_tokens...\n`);
+              // Automatic Model Fallback to qwen/qwen3.6-27b with safe 500 tokens
+              const fallbackModel = safeParams.model === 'openai/gpt-oss-20b' ? 'qwen/qwen3.6-27b' : 'openai/gpt-oss-20b';
+              if (shouldFallback && safeParams.model !== fallbackModel) {
+                console.warn(`\n[AI PROVIDER] GROQ error on ${safeParams.model} (${errorMsg}). Automatically falling back to ${fallbackModel}...\n`);
                 try {
                   const fallbackParams = {
                     ...safeParams,
-                    model: 'llama-3.1-8b-instant',
+                    model: fallbackModel,
                     max_tokens: Math.min(safeParams.max_tokens || 500, 500)
                   };
                   const fallbackResult = await groq.chat.completions.create(fallbackParams);
@@ -111,10 +115,10 @@ export const getLLMClient = (req) => {
                     fallbackResult.choices[0].message.content = fallbackResult.choices[0].message.content.replace(/<think>[\s\S]*?<\/think>\s*/g, '');
                   }
                   const latency = Date.now() - start;
-                  console.log(`\n[AI PROVIDER] GROQ (Fallback)\n[MODEL] llama-3.1-8b-instant\n[STATUS] SUCCESS\n[LATENCY] ${latency} ms\n`);
+                  console.log(`\n[AI PROVIDER] GROQ (Fallback)\n[MODEL] ${fallbackModel}\n[STATUS] SUCCESS\n[LATENCY] ${latency} ms\n`);
                   return fallbackResult;
                 } catch(fallbackErr) {
-                  console.error(`\n[AI PROVIDER] GROQ Fallback (llama-3.1-8b-instant) error:`, fallbackErr.message || fallbackErr);
+                  console.error(`\n[AI PROVIDER] GROQ Fallback (${fallbackModel}) error:`, fallbackErr.message || fallbackErr);
                   throw fallbackErr;
                 }
               }

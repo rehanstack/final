@@ -145,21 +145,21 @@ export default function RAGKnowledge() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
           body: JSON.stringify({
-            model: 'llama-3.3-70b-versatile',
+            model: 'openai/gpt-oss-20b',
             messages: apiMessages,
             temperature: 0.2,
             max_tokens: 700
           })
         })
 
-        // Automatic fallback on 429 rate limit or 400 (OTPM limit) to ultra-fast llama-3.1-8b-instant
-        if (res.status === 429 || res.status === 400) {
-          console.warn("Direct Groq hit limit on 70B, falling back to llama-3.1-8b-instant")
+        // Automatic fallback on 404, 429, or 400 (OTPM limit) to qwen/qwen3.6-27b
+        if (res.status === 404 || res.status === 429 || res.status === 400) {
+          console.warn("Direct Groq error on gpt-oss-20b, falling back to qwen/qwen3.6-27b")
           res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
             body: JSON.stringify({
-              model: 'llama-3.1-8b-instant',
+              model: 'qwen/qwen3.6-27b',
               messages: apiMessages,
               temperature: 0.2,
               max_tokens: 500

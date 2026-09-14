@@ -150,9 +150,9 @@ User Question: ${query}`;
       try {
         const sqlCompletion = await getLLMClient(req).chat.completions.create({
           messages: [{ role: 'user', content: currentSqlPrompt }],
-          model: "llama-3.3-70b-versatile",
+          model: "openai/gpt-oss-20b",
           temperature: 0.1,
-          max_tokens: 500
+          max_tokens: 300
         });
         sqlQuery = sqlCompletion.choices[0]?.message?.content?.trim() || "";
         // Strip markdown backticks
@@ -262,7 +262,7 @@ If the query results are provided, formulate a natural language answer based on 
     try {
       const chatCompletion = await getLLMClient(req).chat.completions.create({
         messages: messages,
-        model: "llama-3.3-70b-versatile",
+        model: "openai/gpt-oss-20b",
         temperature: 0.2,
         max_tokens: 700
       });
@@ -325,7 +325,7 @@ router.post('/api/chat', async (req, res) => {
       const messages = req.body.messages || []
       const chatCompletion = await getLLMClient(req).chat.completions.create({
         messages: messages,
-        model: "llama-3.3-70b-versatile",
+        model: "openai/gpt-oss-20b",
         temperature: 0.3,
         max_tokens: 750
       })
